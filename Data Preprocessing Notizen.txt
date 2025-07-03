@@ -1,5 +1,3 @@
-Data Preprocessing Notizen
-
 - Turnierlogik in eine Matchlogik umgewandelt → sodass dediziert nur Matches betrachtet werden
 - Wir haben XXX (→ z. B. Match Num) Spalten entfernt → Weil kein Einfluss auf Entscheidung des Modells
     - nochmal nachschauen welche und Begründung ausdenken warum (einzeln begründen oder einfach für alle sagen, dass sie keinen Einfluss haben?)
