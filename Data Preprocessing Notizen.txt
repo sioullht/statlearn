@@ -9,3 +9,13 @@
     - Score raus nehmen → Haben die Spieler umgeordnet (→ siehe Oben) und jetzt verwirrt der Score eher und ist unpassend
     - Player Names entfernen
 - Kürzel der Spalten sind auf Kaggle: https://www.kaggle.com/datasets/sijovm/atpdata?select=atp_matches_till_2022.csv
+
+ToDo: 
+- Textuelles in Zahlen ändern -> Dass es interpretierbar ist für das Modell (One-hot-encoding)
+    - Hände (R/L) -> jeweils neue Spalte
+    - Surface -> jeweils neue Spalte
+    - Nationalitäten erstmal drin lassen und nicht ändern -> werden dann später im Feature Engineering eine Spalte hinzufügen mit ist_Heimvorteil 
+- Feature Eningeering beginnen und welche überlegen welche Statistische Berechnungen wir aufnehmen (-> sollen erklärbar und sinnvoll sein)
+- Modelle aufsetzen und trainieren 
+    - fein tunen  
+- Modelle erklärbar machen über Plots und Feature Importance 

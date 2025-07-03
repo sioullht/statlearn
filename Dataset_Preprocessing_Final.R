@@ -18,8 +18,5 @@ if ("score" %in% names(df)) {
 # 5. Spielernamen entfernen
 df <- df %>% select(-player1_name, -player2_name)
 
-# 6. Tourney Name entfernen
-df <- df %>% select(-tourney_name)
-
-# 7. Optional: Speichern
+# 6. Optional: Speichern
 write.csv(df, "ATP_ViLo_final.csv", row.names = FALSE)
