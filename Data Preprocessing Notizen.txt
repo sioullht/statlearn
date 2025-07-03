@@ -1,0 +1,13 @@
+Data Preprocessing Notizen
+
+- Turnierlogik in eine Matchlogik umgewandelt → sodass dediziert nur Matches betrachtet werden
+- Wir haben XXX (→ z. B. Match Num) Spalten entfernt → Weil kein Einfluss auf Entscheidung des Modells
+    - nochmal nachschauen welche und Begründung ausdenken warum (einzeln begründen oder einfach für alle sagen, dass sie keinen Einfluss haben?)
+- Haben dann Winner und Loser zufällig in zwei verschiedene Player eingeteilt, sodass nicht immer Spalte E oder Player 1 der Gewinner ist
+    - Haben die andere Metriken dann auch den neu erstellten Playern zugeordnet
+- Weitere Anpassungen des DS vorgenommen:
+    - Alle Felder mit NAN (→ hier NA) entfernen
+    - Tourney_date in date umbenannt
+    - Score raus nehmen → Haben die Spieler umgeordnet (→ siehe Oben) und jetzt verwirrt der Score eher und ist unpassend
+    - Player Names entfernen
+- Kürzel der Spalten sind auf Kaggle: https://www.kaggle.com/datasets/sijovm/atpdata?select=atp_matches_till_2022.csv
