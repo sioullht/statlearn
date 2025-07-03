@@ -6,16 +6,25 @@ df <- read_csv("atp_matches_till_2022.csv")
 
 # Relevante Spalten auswählen
 spalten <- c(
-  'tourney_date', 'surface', 'match_num', 'winner_id', 'winner_name', 'winner_hand', 'winner_ht', 'winner_ioc', 'winner_age',
-  'loser_id', 'loser_name', 'loser_hand', 'loser_ht', 'loser_ioc', 'loser_age', 'score',
+  'tourney_date', 'tourney_name', 'surface', 
+  'winner_id', 'winner_name', 'winner_hand', 'winner_ht', 'winner_ioc', 'winner_age',
+  'loser_id', 'loser_name', 'loser_hand', 'loser_ht', 'loser_ioc', 'loser_age', 
+  'score', 'best_of', 'minutes', 
   'w_ace', 'w_df', 'w_svpt', 'w_1stIn', 'w_1stWon', 'w_2ndWon', 'w_bpSaved', 'w_bpFaced', 'w_SvGms',
   'l_ace', 'l_df', 'l_svpt', 'l_1stIn', 'l_1stWon', 'l_2ndWon', 'l_bpSaved', 'l_bpFaced', 'l_SvGms',
   'winner_rank', 'loser_rank', 'winner_rank_points', 'loser_rank_points',
   'winner_age', 'winner_ht', 'winner_hand', 'loser_age', 'loser_ht', 'loser_hand'
 )
 
-# Nur ausgewählte Spalten behalten
-df <- df %>% select(all_of(spalten))
+# Fehlende Spalten prüfen
+fehlende <- setdiff(spalten, colnames(df))
+if (length(fehlende) > 0) {
+  cat("Diese Spalten fehlen im Datensatz und werden ignoriert:\n")
+  print(fehlende)
+}
+
+# Nur vorhandene Spalten auswählen
+df <- df %>% select(any_of(spalten))
 
 # Erste Zeilen anzeigen
 print(head(df))
