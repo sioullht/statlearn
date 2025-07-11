@@ -6,8 +6,15 @@ if (!require("fastDummies")) install.packages("fastDummies")
 library(dplyr)
 library(fastDummies)
 
+# ----------------------------
+# Daten einlesen
 df <- read.csv("ATP_ViLo_final.csv")
 
+# Zielvariable sichern und entfernen
+target <- df$y
+df$y <- NULL
+
+# Dummy-Encoding
 df <- fastDummies::dummy_cols(df, select_columns = "surface", remove_selected_columns = TRUE)
 
 # Differenz-Features
@@ -54,10 +61,13 @@ df <- df %>%
     diff_total_points_won_pct = player1_total_points_won_pct - player2_total_points_won_pct
   )
 
-# Alle NA-Werte durch 0 ersetzen (z. B. bei Division durch 0)
+# Nur Feature-Spalten behandeln (ohne y!)
 df <- df %>% mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))
+
+# Zielvariable wieder hinzufügen
+df$y <- target
 
 # Datensatz speichern
 write.csv(df, "ATP_final_FE.csv", row.names = FALSE)
 
-cat("✅ Feature Engineering abgeschlossen. Datei gespeichert als 'ATP_final_ready.csv'\n")
+cat("✅ Feature Engineering abgeschlossen. Datei gespeichert als 'ATP_final_FE.csv'\n")

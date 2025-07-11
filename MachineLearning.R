@@ -24,27 +24,26 @@ cat("✅ Daten erfolgreich eingelesen.\n")
 cat("\n🌲 Starte Training Random Forest Modell...\n")
 
 set.seed(42)
-sample_index <- sample(nrow(df), 0.7 * nrow(df))  
-train <- df[sample_index, ]
-test  <- df[-sample_index, ]
+train_index <- createDataPartition(df$y, p = 0.7, list = FALSE)
+train <- df[train_index, ]
+test  <- df[-train_index, ]
 
 model_rf <- randomForest(y ~ ., data = train, ntree = 200, importance = TRUE)
 cat("✅ Modelltraining abgeschlossen.\n")
 
-# Vorhersagen
+# ----------------------------
+# Vorhersagen und Bewertung
+# ----------------------------
 cat("🔍 Berechne Vorhersagen auf Testdaten...\n")
 preds <- predict(model_rf, newdata = test)
 
-# Accuracy
-accuracy <- mean(preds == test$y)
-cat("🎯 Accuracy (Test):", round(accuracy * 100, 2), "%\n")
-
-# Confusion Matrix
-cat("📊 Erstelle Confusion Matrix...\n")
-cm <- table(Predicted = preds, Actual = test$y)
+cat("📊 Berechne erweiterte Metriken...\n")
+cm <- confusionMatrix(preds, test$y)
 print(cm)
 
+# ----------------------------
 # Feature Importance
+# ----------------------------
 cat("📌 Feature Importance (Top-Variablen):\n")
 print(importance(model_rf))
 
@@ -58,7 +57,7 @@ learning_curve <- function(df, fractions = seq(0.1, 1, 0.1)) {
   
   for (f in fractions) {
     cat(paste0("  ▶ Trainiere mit ", round(f * 100), "% der Daten...\n"))
-    set.seed(42)
+    set.seed(42 + round(f * 100))  # leicht variieren für mehr Realismus
     idx <- sample(nrow(df), f * nrow(df))
     train_sub <- df[idx, ]
     test_sub <- df[-idx, ]
@@ -76,7 +75,6 @@ learning_curve <- function(df, fractions = seq(0.1, 1, 0.1)) {
 lc_data <- learning_curve(df)
 cat("✅ Learning Curve fertig berechnet.\n")
 
-# Plotten
 cat("📊 Zeige Learning Curve...\n")
 print(
   ggplot(lc_data, aes(x = Fraction, y = Accuracy)) +
@@ -93,13 +91,13 @@ print(
 # ----------------------------
 cat("\n💾 Speichere Ergebnisse...\n")
 
-write.csv(cm, "confusion_matrix.csv", row.names = TRUE)
-cat("✅ Confusion Matrix gespeichert: confusion_matrix.csv\n")
+write.csv(as.data.frame(cm$table), "confusion_matrix2.csv", row.names = FALSE)
+cat("✅ Confusion Matrix gespeichert\n")
 
-write.csv(lc_data, "learning_curve.csv", row.names = FALSE)
-cat("✅ Learning Curve gespeichert: learning_curve.csv\n")
+write.csv(lc_data, "learning_curve2.csv", row.names = FALSE)
+cat("✅ Learning Curve gespeichert\n")
 
-save(model_rf, file = "rf_model.RData")
-cat("✅ Modell gespeichert: rf_model.RData\n")
+save(model_rf, file = "rf_model2.RData")
+cat("✅ Modell gespeichert\n")
 
 cat("\n🚀 Skript erfolgreich abgeschlossen!\n")
