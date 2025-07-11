@@ -19,3 +19,9 @@ ToDo:
 - Modelle aufsetzen und trainieren 
     - fein tunen  
 - Modelle erklärbar machen über Plots und Feature Importance 
+
+
+
+
+Neuer Approach Feature Engineering:
+- Datum ist stichtag -> Nur die Daten bis dahin sollten berücksichtigt werden 

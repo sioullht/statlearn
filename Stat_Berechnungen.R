@@ -47,13 +47,7 @@ anzahl_spieler_über_15 <- nrow(player_over_15)
 print(sum(table(c(df$player1_id, df$player2_id))))
 print(length(unique(c(df$player1_id, df$player2_id))))
 
-
-
 # 🖨️ Ausgabe in Konsole
 cat("📊 Durchschnittliche Anzahl Spiele pro Spieler:", round(mean_matches, 2), "\n")
 cat("📊 Median Anzahl Spiele pro Spieler:", median_matches, "\n")
 cat("👥 Anzahl Spieler mit >15 Spielen:", anzahl_spieler_über_15, "\n")
-
-
-
-
