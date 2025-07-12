@@ -22,6 +22,11 @@ ToDo:
 
 
 
-
 Neuer Approach Feature Engineering:
 - Datum ist stichtag -> Nur die Daten bis dahin sollten berücksichtigt werden 
+- IDs sollten entfernt werden -> Sonst lernt MOdell das manche IDs gut sind und daraus resultiert overfitting
+- Wenn du weitere Daten hast (z. B. alle Matches von Spielern), könntest du z. B. pro Spieler die letzten 5 Spiele aggregieren und daraus:
+    - Durchschnittliche Aces
+    - Win-Rate
+    - Form (z. B. Sieg/Niederlage in den letzten 5 Matches)
+    - Durchschnitts-Breakpoints
