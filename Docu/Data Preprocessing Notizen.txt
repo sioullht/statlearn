@@ -60,7 +60,7 @@ Bpsaved/bpfaced *100
 Quote Breakpoints/Aufschlagspiel:
 Bpfaced/svgms 
 
-Gebreaked: 1 - (bpsaved / bpfaced)
+Gebreaked:1 - (bpsaved / bpfaced)
 
 One-Hot encoding player Hands
 
