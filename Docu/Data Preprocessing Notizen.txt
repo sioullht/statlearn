@@ -62,6 +62,7 @@ Bpfaced/svgms
 
 Gebreaked: 1 - (bpsaved / bpfaced)
 
+One-Hot encoding player Hands
 
 Differenzen: 
 Feature-Name	Formel
