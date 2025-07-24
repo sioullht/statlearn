@@ -1,141 +1,39 @@
+library(tidyverse)
 library(dplyr)
-library(lubridate)
 
-# ----------------------------
-cat("📥 Lese Daten ein...\n")
-df <- read.csv("ATP_ViLo_final.csv")
-df$y <- as.factor(df$y)  # Zielvariable als Faktor
-cat("✅ Daten erfolgreich eingelesen.\n")
-
-df$date <- ymd(df$date)
-
-# Matches nach Datum sortieren
+df <- read_csv("ATP_ViLo_.csv")
 df <- df %>%
-  arrange(date)
+  mutate(
+    p1_ace_percent     = (player1_ace / player1_svpt) * 100,
+    p1_doublefault_percent      = (player1_df / player1_svpt) * 100,
+    p1_1in_percent     = (player1_1stin / player1_svpt) * 100,
+    p1_1won_percent    = ifelse(player1_1stin > 0, (player1_1stwon / player1_1stin) * 100, 0),
+    p1_serve_win_percent  = ((player1_1stwon + player1_2ndwon) / player1_svpt) * 100,
+    p1_breakp_saved = ifelse(player1_bpfaced > 0, (player1_bpsaved / player1_bpfaced), NA),
+    p1_breakp_saved  = ifelse(player1_svgms > 0, player1_bpfaced / player1_svgms, NA),
+    p1_breakp_succeed   = ifelse(player1_bpfaced > 0, 1 - (player1_bpsaved / player1_bpfaced), NA),
 
-get_player_stats_before_match <- function(player_id, match_date, df) {
-  past_matches <- df %>%
-    filter(date < match_date) %>%
-    filter(player1_id == player_id | player2_id == player_id) %>%
-    mutate(
-      is_win = ifelse(player1_id == player_id & y == 1, 1,
-                      ifelse(player2_id == player_id & y == 0, 1, 0)),
-      ace = ifelse(player1_id == player_id, player1_ace, player2_ace),
-      df = ifelse(player1_id == player_id, player1_df, player2_df),
-      svpt = ifelse(player1_id == player_id, player1_svpt, player2_svpt),
-      minutes = minutes,
-      surface = surface,
-      rank = ifelse(player1_id == player_id, player1_rank, player2_rank)
-    )
+    p2_ace_percent     = (player2_ace / player2_svpt) * 100,
+    p2_doublefault_percent      = (player2_df / player2_svpt) * 100,
+    p2_1in_percent     = (player2_1stin / player2_svpt) * 100,
+    p2__1won_percent    = ifelse(player2_1stin > 0, (player2_1stwon / player2_1stin) * 100, 0),
+    p2_serve_win_percent  = ((player2_1stwon + player2_2ndwon) / player2_svpt) * 100,
+    p2_breakp_saved = ifelse(player2_bpfaced > 0, (player2_bpsaved / player2_bpfaced), NA),
+    p2_breakp_saved  = ifelse(player2_svgms > 0, player2_bpfaced / player2_svgms, NA),
+    p2_breakp_succeed   = ifelse(player2_bpfaced > 0, 1 - (player2_bpsaved / player2_bpfaced), NA),
 
-  tibble(
-    winrate = mean(past_matches$is_win, na.rm = TRUE),
-    matches_played = nrow(past_matches),
-    avg_svpt = mean(past_matches$svpt, na.rm = TRUE),
-    avg_ace = mean(past_matches$ace, na.rm = TRUE),
-    avg_df = mean(past_matches$df, na.rm = TRUE),
-    avg_duration = mean(past_matches$minutes, na.rm = TRUE),
-    winrate_clay = mean(past_matches$is_win[past_matches$surface == "Clay"], na.rm = TRUE),
-    winrate_hard = mean(past_matches$is_win[past_matches$surface == "Hard"], na.rm = TRUE),
-    winrate_grass = mean(past_matches$is_win[past_matches$surface == "Grass"], na.rm = TRUE)
-  )
-}
-
-get_recent_form <- function(player_id, match_date, df, n = 10) {
-  recent_matches <- df %>%
-    filter(date < match_date) %>%
-    filter(player1_id == player_id | player2_id == player_id) %>%
-    arrange(desc(date)) %>%
-    head(n) %>%
-    mutate(is_win = ifelse(player1_id == player_id & y == 1, 1,
-                           ifelse(player2_id == player_id & y == 0, 1, 0)))
-
-  tibble(
-    recent_winrate = mean(recent_matches$is_win, na.rm = TRUE),
-    recent_matches = nrow(recent_matches)
-  )
-}
-
-get_head2head <- function(p1, p2, match_date, df) {
-  h2h_matches <- df %>%
-    filter(date < match_date) %>%
-    filter((player1_id == p1 & player2_id == p2) | (player1_id == p2 & player2_id == p1)) %>%
-    mutate(
-      p1_win = ifelse(player1_id == p1 & y == 1, 1,
-                      ifelse(player2_id == p1 & y == 0, 1, 0))
-    )
-
-  tibble(
-    h2h_total = nrow(h2h_matches),
-    h2h_winrate_p1 = mean(h2h_matches$p1_win, na.rm = TRUE)
-  )
-}
-
-get_ranking_avg <- function(player_id, match_date, df, days = 90) {
-  recent_ranks <- df %>%
-    filter(date < match_date & date >= (match_date - days(days))) %>%
-    filter(player1_id == player_id | player2_id == player_id) %>%
-    mutate(rank = ifelse(player1_id == player_id, player1_rank, player2_rank))
-
-  mean(recent_ranks$rank, na.rm = TRUE)
-}
-
-get_match_context <- function(match_row) {
-  tibble(
-    surface = match_row$surface,
-    best_of = match_row$best_of,
-    match_weekday = wday(match_row$date, label = TRUE),
-    match_month = month(match_row$date),
-    season_phase = case_when(
-      match_row$match_month %in% 1:4 ~ "early",
-      match_row$match_month %in% 5:8 ~ "mid",
-      TRUE ~ "late"
-    )
-  )
-}
-
-feature_df <- list()
-
-for (i in 1:nrow(df)) {
-  row <- df[i,]
-  date_i <- row$date
-  p1 <- row$player1_id
-  p2 <- row$player2_id
-
-  p1_stats <- get_player_stats_before_match(p1, date_i, df)
-  p2_stats <- get_player_stats_before_match(p2, date_i, df)
-
-  p1_form <- get_recent_form(p1, date_i, df)
-  p2_form <- get_recent_form(p2, date_i, df)
-
-  h2h <- get_head2head(p1, p2, date_i, df)
-
-  p1_rank_avg <- get_ranking_avg(p1, date_i, df)
-  p2_rank_avg <- get_ranking_avg(p2, date_i, df)
-
-  context <- get_match_context(row)
-
-  combined <- bind_cols(
-    tibble(match_id = i, player1_id = p1, player2_id = p2),
-    p1_stats %>% rename_with(~ paste0("p1_", .)),
-    p2_stats %>% rename_with(~ paste0("p2_", .)),
-    p1_form %>% rename_with(~ paste0("p1_", .)),
-    p2_form %>% rename_with(~ paste0("p2_", .)),
-    tibble(rank_avg_diff = p2_rank_avg - p1_rank_avg),
-    h2h,
-    context,
-    tibble(y = row$y)
+    #TODO: anpassen -> sind bisher werte die wenig aussagen 
+    ace_diff           = (player1_ace / player1_svpt) - (player2_ace / player2_svpt),
+    df_diff            = (player1_df / player1_svpt) - (player2_df / player2_svpt),
+    in1_pct_diff       = (player1_1stin / player1_svpt) - (player2_1stin / player2_svpt),
+    won1_pct_diff      = ifelse(player1_1stin > 0, player1_1stwon / player1_1stin, 0) -
+                         ifelse(player2_1stin > 0, player2_1stwon / player2_1stin, 0),
+    sv_win_pct_diff    = ((player1_1stwon + player1_2ndwon) / player1_svpt) -
+                         ((player2_1stwon + player2_2ndwon) / player2_svpt),
+    bp_saved_pct_diff  = ifelse(player1_bpfaced > 0, player1_bpsaved / player1_bpfaced, NA) -
+                         ifelse(player2_bpfaced > 0, player2_bpsaved / player2_bpfaced, NA),
+    bp_per_game_diff   = ifelse(player1_svgms > 0, player1_bpfaced / player1_svgms, NA) -
+                         ifelse(player2_svgms > 0, player2_bpfaced / player2_svgms, NA)
   )
 
-  feature_df[[i]] <- combined
-}
-
-df_final <- bind_rows(feature_df)
-
-# Zielvariable wieder hinzufügen
-df$y <- target
-
-# Datensatz speichern
-write.csv(df, "ATP_final_FE.csv", row.names = FALSE)
-
-cat("✅ Feature Engineering abgeschlossen. Datei gespeichert als 'ATP_final_FE.csv'\n")
+write.csv(df, "FE_Step1.csv", row.names = FALSE)
