@@ -1,0 +1,72 @@
+tellen Sie sich vor, Ihr riesiger Datensatz würde nur aus diesen drei Matches bestehen:
+
+row_id	player1_id	player2_id	date	player1_ace	player2_ace
+1	100 (Nadal)	200 (Federer)	20230101	5	10
+2	300 (Djokovic)	400 (Murray)	20230102	8	4
+3	100 (Nadal)	300 (Djokovic)	20230103	7	12
+
+In Google Sheets exportieren
+Unser Ziel ist es, für Match 3 (Nadal vs. Djokovic) die historischen Werte zu berechnen.
+
+Schritt 1: Umformung der Daten (auseinandernehmen)
+Der Computer kann nicht einfach in der Tabelle "hoch und runter springen", um Nadals vorherige Spiele zu finden. Zuerst müssen wir die Daten so umformen, dass wir eine Liste von "Spieler-Ereignissen" haben. Der Code "stapelt" quasi die Spieler-1- und Spieler-2-Spalten übereinander.
+
+Aus der Tabelle oben werden temporär diese sechs Zeilen:
+
+row_id	id	date	ace
+1	100 (Nadal)	20230101	5
+1	200 (Federer)	20230101	10
+2	300 (Djokovic)	20230102	8
+2	400 (Murray)	20230102	4
+3	100 (Nadal)	20230103	7
+3	300 (Djokovic)	20230103	12
+
+In Google Sheets exportieren
+Schritt 2: Sortierung (die Spieler-Karriere ordnen)
+Jetzt kommt der entscheidende Teil. Der Code sortiert diese neue Tabelle nach id und dann nach date. Das Ergebnis ist eine chronologische Karriere-Übersicht für jeden Spieler.
+
+row_id	id	date	ace
+1	100 (Nadal)	20230101	5
+3	100 (Nadal)	20230103	7
+1	200 (Federer)	20230101	10
+2	300 (Djokovic)	20230102	8
+3	300 (Djokovic)	20230103	12
+2	400 (Murray)	20230102	4
+
+In Google Sheets exportieren
+Schritt 3: Berechnung der historischen Werte (der slider)
+Jetzt geht der Code Zeile für Zeile durch und berechnet für jede den Durchschnitt der vorherigen Spiele (bis zu 10).
+
+Für Nadals erstes Spiel (row_id 1): Es gibt keine vorherigen Spiele. Das Ergebnis für hist_ace ist 0.
+
+Für Nadals zweites Spiel (row_id 3): Der Code schaut sich Nadals vorheriges Spiel an. Der ace-Wert war 5. Der Durchschnitt ist also 5.0.
+
+Für Djokovics erstes Spiel (row_id 2): Keine Historie. Das Ergebnis ist 0.
+
+Für Djokovics zweites Spiel (row_id 3): Sein vorheriger ace-Wert war 8. Der Durchschnitt ist 8.0.
+
+Das Ergebnis dieser Berechnung ist eine neue Tabelle mit den historischen Werten:
+
+row_id	id	hist_ace
+1	100 (Nadal)	0.0
+3	100 (Nadal)	5.0
+1	200 (Federer)	0.0
+2	300 (Djokovic)	0.0
+3	300 (Djokovic)	8.0
+2	400 (Murray)	0.0
+
+In Google Sheets exportieren
+Schritt 4 & 5: Zurückführen und finale Features (zusammensetzen)
+Zum Schluss nimmt der Code diese neuen historischen Werte und fügt sie wieder in die ursprüngliche Tabelle ein, die nur eine Zeile pro Match hat.
+
+Fokus auf Match 3 (row_id 3):
+
+Für Spieler 1 (Nadal): Er holt sich Nadals hist_ace-Wert für diese row_id -> 5.0. Daraus wird die Spalte p1_hist_ace.
+
+Für Spieler 2 (Djokovic): Er holt sich Djokovics hist_ace-Wert -> 8.0. Daraus wird p2_hist_ace.
+
+Jetzt kann er die finale Differenz berechnen:
+
+hist_ace_diff = p1_hist_ace_percent - p2_hist_ace_percent (berechnet aus den historischen Werten)
+
+Ganz am Ende werden alle Spalten mit den tatsächlichen Spielwerten (z.B. player1_ace, player2_ace) gelöscht, um Data Leakage zu verhindern. Übrig bleibt nur die Information, die vor dem Match bekannt war.

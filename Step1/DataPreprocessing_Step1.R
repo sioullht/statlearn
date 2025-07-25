@@ -14,10 +14,13 @@ read_csv(input_file) %>%
   filter(surface == "Hard") %>%
   
   # Schritt 2: Entferne die nicht mehr benötigten Spalten
-  select(-tourney_name, -date, -best_of, -minutes, -player1_ioc, -player2_ioc) %>%
+  select(-tourney_name, -best_of, -minutes, -player1_ioc, -player2_ioc) %>%
 
   # Schritt 3 (NEU): Die konstante "surface"-Spalte entfernen
   select(-surface) %>%
   
-  # Schritt 4: Speichere den bearbeiteten Data Frame als neue CSV-Datei
+  # Schritt 4 (NEU): Entferne alle Zeilen, die einen NA-Wert enthalten
+  drop_na() %>%
+
+  # Schritt 5: Speichere den bearbeiteten Data Frame als neue CSV-Datei
   write_csv(output_file)
