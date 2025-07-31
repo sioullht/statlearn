@@ -1,0 +1,74 @@
+Schritt 0: Vorbereitung
+In diesem Schritt wird die Arbeitsumgebung eingerichtet.
+
+library(tidyverse) und library(zoo): Diese Befehle laden die notwendigen R-Pakete. tidyverse ist eine Sammlung von Paketen für die Datenmanipulation (wie dplyr) und zoo wird speziell für die Berechnung von rollierenden oder gleitenden Durchschnitten benötigt.
+
+read_csv(...): Liest Ihre ursprüngliche Datendatei ein.
+
+arrange(date): Sortiert den gesamten Datensatz chronologisch nach Datum. Dies ist entscheidend, damit die "letzten 10 Spiele" auch wirklich die chronologisch letzten sind.
+
+mutate(match_id = row_number()): Erstellt eine neue Spalte match_id mit einer eindeutigen, fortlaufenden Nummer für jedes Spiel. Diese ID ist der Schlüssel, um später sicherzustellen, dass die Daten wieder korrekt zusammengeführt werden.
+
+---------------------------------------
+
+Schritt 1: Daten umstrukturieren (Wide-to-Long)
+Ihr ursprünglicher Datensatz ist "breit" (wide), das heisst, die Daten für beide Spieler (player1_ace, player2_ace) stehen nebeneinander in einer Zeile. Für die Berechnung von individuellen Spielerhistorien ist ein "langes" (long) Format praktischer, bei dem jede Zeile nur die Daten eines Spielers für ein bestimmtes Match enthält.
+
+p1_data und p2_data: Das Skript teilt den Datensatz in zwei Teile auf: einen für die Statistiken von Spieler 1 und einen für die von Spieler 2.
+
+rename(...): Die Spalten werden umbenannt, sodass sie generisch sind (z.B. wird aus player1_id und player2_id einfach player_id).
+
+bind_rows(...): Die beiden Teile werden untereinander zu einem langen Datensatz zusammengefügt. Jedes Match belegt nun zwei Zeilen.
+
+arrange(player_id, date, match_id): Dieser lange Datensatz wird nun nach Spieler und dann chronologisch sortiert. Das ist die Grundlage für den nächsten Schritt.
+
+write_csv(...): Die erste Zwischendatei wird gespeichert.
+
+---------------------------------------
+
+Schritt 2: Berechnung der historischen Durchschnitte
+Dies ist das Kernstück des Feature Engineerings.
+
+group_by(player_id): Das Skript gruppiert die Daten so, dass alle Berechnungen für jeden Spieler einzeln durchgeführt werden.
+
+mutate(across(...)): Für jede Statistikspalte (ace, df etc.) wird eine neue Spalte mit dem Präfix h_ (für historisch) erstellt.
+
+lag(rollapplyr(...)): Das ist die entscheidende Funktion.
+
+rollapplyr(...): Nimmt für jedes Spiel die letzten 10 Spiele (width = 10) und berechnet deren Durchschnitt (FUN = mean). partial = TRUE sorgt dafür, dass auch ein Durchschnitt berechnet wird, wenn ein Spieler noch keine 10 Spiele absolviert hat (z.B. nur 3).
+
+lag(...): Diese Funktion verschiebt die berechneten Werte um eine Position nach unten. Dadurch wird sichergestellt, dass für die Vorhersage von Spiel X nur die Daten der Spiele vor Spiel X verwendet werden, um ein "Data Leakage" (Informationsleck aus der Zukunft) zu vermeiden.
+
+mutate(across(starts_with("h_"), ~replace_na(., 0))): Nach der lag-Operation hat das allererste Spiel eines Spielers einen NA-Wert (Not Available), weil es keine Historie hat. Diese Zeile ersetzt alle NA-Werte in den neuen historischen Spalten durch eine 0.
+
+write_csv(...): Die zweite Zwischendatei mit den berechneten historischen Werten wird gespeichert.
+
+---------------------------------------
+
+Schritt 3: Daten zurückführen (Long-to-Wide)
+Nun werden die berechneten historischen Werte wieder dem ursprünglichen, "breiten" Datensatz zugeordnet.
+
+left_join(...): Mithilfe der match_id und der jeweiligen player_id (player1_id und player2_id) werden die h_-Werte als neue Spalten an den Originaldatensatz angehängt.
+
+rename_with(...): Die Spalten werden wieder spezifisch benannt (z.B. player1_h_ace, player2_h_ace), damit klar ist, welche historischen Daten zu welchem Spieler gehören.
+
+---------------------------------------
+
+Schritt 4: Neuberechnung der abgeleiteten Features
+Ihre ursprünglichen Features wie ace_diff oder p1_ace_percent basierten auf den Rohdaten des aktuellen Spiels. Jetzt werden sie neu berechnet, aber diesmal basierend auf den historischen Durchschnittswerten (h_-Werten), die in Schritt 2 und 3 erstellt wurden. Dadurch wird Ihr Modell prädiktiver, da es auf der Vergangenheitsform der Spieler basiert und nicht auf den Ergebnisdaten des Matches, das es vorhersagen soll.
+
+---------------------------------------
+
+Schritt 5: Finales Dataset erstellen
+Im letzten Schritt wird aufgeräumt.
+
+select(...): Es werden nur die Spalten ausgewählt, die für das finale Modell benötigt werden. Dazu gehören die statischen Spielerdaten (Alter, Grösse), die Ranking-Informationen und die neu berechneten, auf historischen Daten basierenden Features.
+
+write_csv(...): Der fertige Datensatz, bereit für das Modelltraining, wird als finale CSV-Datei gespeichert.
+
+
+
+
+
+
+

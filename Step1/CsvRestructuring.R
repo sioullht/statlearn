@@ -51,5 +51,10 @@ df_reordered <- df %>%
     y
   )
 
+  # NEU: Sortiere den neu geordneten DataFrame chronologisch nach dem Datum.
+  # Da 'date' als YYYYMMDD-Zahl vorliegt, funktioniert arrange() korrekt.
+  df_reordered <- df_reordered %>%
+    arrange(date)
+
 # Speichere den neu geordneten DataFrame als neue CSV-Datei
 write_csv(df_reordered, output_file)
