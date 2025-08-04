@@ -91,7 +91,8 @@ Quote für min 1 Spiel bis max 10? -> anhand des Index nach absteigend (100, 99,
 
 - Danach entfernen wir die Spalten mit Nan oder 0 
 
-
+STEP3
+-Scaling Methods
 
 STEP3 
 
