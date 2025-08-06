@@ -1,7 +1,7 @@
 # -------------------------------------------------------
 # 1. Pakete laden
 # -------------------------------------------------------
-packages <- c("tidyverse", "randomForest", "pROC", "scales", "caret")
+packages <- c("tidyverse", "ranger", "pROC", "scales", "caret")
 
 installed <- rownames(installed.packages())
 for (pkg in packages) {
@@ -22,30 +22,34 @@ train_data$y <- factor(train_data$y, levels = c(0, 1), labels = c("neg", "pos"))
 test_data$y  <- factor(test_data$y,  levels = c(0, 1), labels = c("neg", "pos"))
 
 # -------------------------------------------------------
-# 4. Hyperparameter-Tuning mit caret::train()
+# 4. Hyperparameter-Tuning mit ranger & caret::train()
 # -------------------------------------------------------
 set.seed(123)
 
 # Cross-Validation definieren
 control <- trainControl(
-  method = "cv",             # k-fold Cross-Validation
-  number = 5,                # 5-fold
-  classProbs = TRUE,         # Wahrscheinlichkeiten für ROC
-  summaryFunction = twoClassSummary # Für ROC
+  method = "cv",
+  number = 5,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
 )
 
-# Parameter-Raster
-tune_grid <- expand.grid(mtry = c(2, 4, 6, 8, 10))
+# Parameter-Raster definieren
+tune_grid <- expand.grid(
+  mtry = c(2, 4, 6, 8),
+  splitrule = c("gini", "extratrees"),
+  min.node.size = c(1, 5, 10)
+)
 
-# Training mit Tuning
+# Modelltraining mit Tuning
 model_rf <- train(
-  y ~ ., 
+  y ~ .,
   data = train_data,
-  method = "rf",
+  method = "ranger",
   trControl = control,
-  metric = "ROC",            # Optimierungskriterium
   tuneGrid = tune_grid,
-  importance = TRUE
+  metric = "ROC",
+  importance = "impurity"
 )
 
 print(model_rf)
@@ -72,13 +76,17 @@ f1 <- cm$byClass["F1"]
 # -------------------------------------------------------
 roc_obj <- roc(response = test_data$y, predictor = pred_prob)
 auc_value <- pROC::auc(roc_obj)
-pdf("/Models/RF_Tuned/roc_curve.pdf", width = 8, height = 6)
+
+# Sicherstellen, dass Verzeichnis existiert
+dir.create("Models/RF_Tuned", recursive = TRUE, showWarnings = FALSE)
+
+# ROC speichern
+pdf("Models/RF_Tuned/roc_curve.pdf", width = 8, height = 6)
 plot(roc_obj, col = "blue", main = "ROC Curve")
 dev.off()
 
-
 # -------------------------------------------------------
-# 8. Log Loss (manuell)
+# 8. Log Loss
 # -------------------------------------------------------
 eps <- 1e-15
 pred_prob_clipped <- pmin(pmax(pred_prob, eps), 1 - eps)
@@ -129,7 +137,7 @@ cat("Log Loss    :", round(logloss_value, 3), "\n")
 cat("Brier Score :", round(brier_score, 3), "\n")
 
 # Modell speichern
-saveRDS(model_rf, file = "/Models/RF_Tuned/model_rf_tuned.rds")
+saveRDS(model_rf, file = "Models/RF_Tuned/model_rf_tuned.rds")
 
 # Metriken exportieren
 metrics_df <- data.frame(
@@ -140,6 +148,6 @@ metrics_df <- data.frame(
   AUC          = as.numeric(auc_value),
   Log_Loss     = logloss_value,
   Brier_Score  = brier_score
-)
+)s
 
-write.csv(metrics_df, "/Models/RF_Tuned/model_metrics_tuned.csv", row.names = FALSE)
+write.csv(metrics_df, "Models/RF_Tuned/model_metrics_tuned.csv", row.names = FALSE)
