@@ -30,5 +30,5 @@ train_data_scaled <- predict(scaler, train_data)
 test_data_scaled <- predict(scaler, test_data)
 
 # 6. Skalierte Daten speichern
-write_csv(train_data_scaled, "Step3/FE_Step4_train_scaled.csv")
-write_csv(test_data_scaled, "Step3/FE_Step4_test_scaled.csv")
+write_csv(train_data_scaled, "Step3/train_data.csv")
+write_csv(test_data_scaled, "Step3/test_data.csv")
