@@ -17,9 +17,19 @@ train_data$y <- factor(train_data$y, levels=c(0,1), labels=c("neg","pos"))
 test_data$y  <- factor(test_data$y,  levels=c(0,1), labels=c("neg","pos"))
 
 # -------------------------------------------------------
+# Ausgabepfade
+# -------------------------------------------------------
+out_dir  <- "Models/XGB_Tuned"
+plot_dir <- file.path(out_dir, "plots")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
+log_file <- file.path(out_dir, "train_log.txt")
+
+# -------------------------------------------------------
 # Parallelisierung
 # -------------------------------------------------------
-cl <- parallel::makeCluster(max(1, parallel::detectCores()-1))
+n_cores <- max(1, parallel::detectCores()-1)
+cl <- parallel::makeCluster(n_cores)
 doParallel::registerDoParallel(cl)
 
 # -------------------------------------------------------
@@ -30,7 +40,8 @@ control <- trainControl(
   number = 5,
   classProbs = TRUE,
   summaryFunction = twoClassSummary,
-  savePredictions = "final"
+  savePredictions = "final",
+  allowParallel = TRUE
 )
 
 # -------------------------------------------------------
@@ -52,6 +63,31 @@ neg_rate <- 1 - pos_rate
 scale_pos_w <- neg_rate / pos_rate  # ~1 bei Balance
 
 # -------------------------------------------------------
+# Logging: Setup-Infos
+# -------------------------------------------------------
+grid_combos <- nrow(xgb_grid)
+cv_folds    <- control$number
+est_fits    <- grid_combos * cv_folds
+
+cat(
+  "========================\n",
+  "Run gestartet: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n",
+  "Cores: ", n_cores, "\n",
+  "CV-Folds: ", cv_folds, "\n",
+  "Grid-Kombinationen: ", grid_combos, "\n",
+  "Fits (Grid x Folds): ", est_fits, "\n",
+  "pos_rate: ", round(pos_rate, 4), " | scale_pos_weight: ", round(scale_pos_w, 4), "\n",
+  "------------------------\n",
+  file = log_file, append = TRUE, sep = ""
+)
+
+# -------------------------------------------------------
+# Zeitmessung starten
+# -------------------------------------------------------
+start_time <- Sys.time()
+message("Training gestartet um: ", format(start_time, "%Y-%m-%d %H:%M:%S"))
+
+# -------------------------------------------------------
 # Training
 # -------------------------------------------------------
 model_xgb_tuned <- train(
@@ -63,6 +99,25 @@ model_xgb_tuned <- train(
   verbose = FALSE,
   preProcess = c("YeoJohnson","center","scale","nzv"),
   scale_pos_weight = scale_pos_w
+)
+
+# -------------------------------------------------------
+# Zeitmessung stoppen & Dauer loggen
+# -------------------------------------------------------
+end_time <- Sys.time()
+duration_min <- as.numeric(difftime(end_time, start_time, units = "mins"))
+message("Training beendet um: ", format(end_time, "%Y-%m-%d %H:%M:%S"))
+message("Gesamtdauer (Minuten): ", round(duration_min, 2))
+
+# Log schreiben (inkl. bestTune)
+bt <- model_xgb_tuned$bestTune
+cat(
+  "Training gestartet um: ", format(start_time, "%Y-%m-%d %H:%M:%S"), "\n",
+  "Training beendet  um: ", format(end_time,   "%Y-%m-%d %H:%M:%S"), "\n",
+  "Gesamtdauer (Minuten): ", round(duration_min, 2), "\n",
+  "BestTune: ", paste0(capture.output(print(bt)), collapse=" "), "\n",
+  "========================\n",
+  file = log_file, append = TRUE, sep = ""
 )
 
 print(model_xgb_tuned)
@@ -83,6 +138,7 @@ f1s <- sapply(ths, function(t){
 })
 best_thr <- ths[which.max(f1s)]
 message(sprintf("Gewählter Cutoff (F1-optimal, OOF): %.2f", best_thr))
+cat("Gewählter Cutoff (F1-optimal, OOF): ", round(best_thr, 3), "\n", file = log_file, append = TRUE)
 
 # -------------------------------------------------------
 # Predictions: TRAIN & TEST
@@ -150,10 +206,6 @@ print(round(metrics_train_test, 4))
 # -------------------------------------------------------
 # Speicherung
 # -------------------------------------------------------
-out_dir  <- "Models/XGB_Tuned"
-plot_dir <- file.path(out_dir, "plots")
-dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
-
 # Confusion Matrices als TXT
 capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
 capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))

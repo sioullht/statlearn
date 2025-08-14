@@ -1,0 +1,8 @@
+========================
+Run gestartet: 2025-08-14 11:50:33
+Cores: 7
+CV-Folds: 5
+Grid-Kombinationen: 972
+Fits (Grid x Folds): 4860
+pos_rate: 0.4997 | scale_pos_weight: 1.0011
+------------------------
