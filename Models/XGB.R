@@ -1,10 +1,10 @@
 # -------------------------------------------------------
 # Pakete
 # -------------------------------------------------------
-packages <- c("tidyverse", "caret", "pROC", "xgboost", "scales", "Matrix")
+packages <- c("tidyverse", "caret", "pROC", "xgboost", "scales", "Matrix", "ggplot2")
 installed <- rownames(installed.packages())
 for (pkg in packages) if (!pkg %in% installed) install.packages(pkg)
-lapply(packages, library, character.only = TRUE)
+invisible(lapply(packages, library, character.only = TRUE))
 
 set.seed(123)
 
@@ -26,7 +26,7 @@ ctrl_none <- trainControl(
   summaryFunction = twoClassSummary
 )
 
-# Feste Hyperparameter (einfach, konservativ)
+# Feste Hyperparameter
 base_grid <- data.frame(
   nrounds = 200,
   max_depth = 6,
@@ -114,61 +114,48 @@ metrics_train_test <- rbind(Train = metrics_train, Test = metrics_test) %>% as.d
 print(round(metrics_train_test, 4))
 
 # -------------------------------------------------------
-# Plots: ROC/AUC als PDF speichern
+# Verzeichnisse & Speichern
 # -------------------------------------------------------
-out_dir <- "Models/XGB"
+out_dir  <- "Models/XGB"
 plot_dir <- file.path(out_dir, "plots")
 dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Einzelplots (Train & Test)
-p_train <- ggplot2::ggroc(roc_train) +
+# Confusion Matrices als TXT sichern
+capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
+capture.output(cm_test,  file = file.path(out_dir,  "confusion_matrix_test.txt"))
+
+# Metriken speichern (Train vs. Test)
+metrics_train_test %>%
+  tibble::rownames_to_column("Split") %>%
+  readr::write_csv(file.path(out_dir, "metrics_train_vs_test.csv"))
+
+# Zusätzlich: nur Testmetriken (wie bisher)
+data.frame(Metric = names(metrics_test), Value = as.numeric(metrics_test)) %>%
+  readr::write_csv(file.path(out_dir, "metrics_test_only.csv"))
+
+# -------------------------------------------------------
+# Plots: ROC/AUC als PDF speichern
+# -------------------------------------------------------
+# Einzelplots
+p_train <- pROC::ggroc(roc_train) +
   ggplot2::ggtitle(sprintf("ROC (TRAIN) — AUC = %.3f", auc_train)) +
   ggplot2::theme_minimal()
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train.pdf"), plot = p_train, width = 6, height = 5)
 
-p_test <- ggplot2::ggroc(roc_test) +
+p_test <- pROC::ggroc(roc_test) +
   ggplot2::ggtitle(sprintf("ROC (TEST) — AUC = %.3f", auc_test)) +
   ggplot2::theme_minimal()
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Test.pdf"), plot = p_test, width = 6, height = 5)
 
-ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train.pdf"), plot = p_train, width = 6, height = 5)
-ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Test.pdf"),  plot = p_test,  width = 6, height = 5)
-
-# Vergleichsplot (beide Kurven in einem PDF)
-roc_df_train <- data.frame(sens = roc_train$sensitivities, spec = roc_train$specificities, split = "Train")
-roc_df_test  <- data.frame(sens = roc_test$sensitivities,  spec = roc_test$specificities,  split = "Test")
-roc_both <- bind_rows(roc_df_train, roc_df_test) %>%
-  mutate(fpr = 1 - spec)
-
-p_both <- ggplot2::ggplot(roc_both, aes(x = fpr, y = sens, linetype = split)) +
-  ggplot2::geom_line() +
-  ggplot2::geom_abline(slope = 1, intercept = 0, linewidth = 0.3) +
-  ggplot2::labs(title = sprintf("ROC — Train (AUC=%.3f) vs. Test (AUC=%.3f)", auc_train, auc_test),
-                x = "False Positive Rate", y = "True Positive Rate", linetype = "Split") +
-  ggplot2::theme_minimal()
+# Vergleichsplot (beide Kurven)
+p_both <- pROC::ggroc(list(Train = roc_train, Test = roc_test)) +
+  ggplot2::ggtitle(sprintf("ROC — Train (AUC = %.3f) vs. Test (AUC = %.3f)", auc_train, auc_test)) +
+  ggplot2::theme_minimal() +
+  ggplot2::labs(linetype = "Split", color = "Split")
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_vs_Test.pdf"), plot = p_both, width = 6, height = 5)
 
 # -------------------------------------------------------
-# Confusion Matrices speichern (als TXT) + Metriken als CSV
-# -------------------------------------------------------
-dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-
-# Confusion Matrices als Text sichern
-capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
-capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))
-
-# Metriken speichern (nebeneinander)
-readr::write_csv(
-  metrics_train_test %>% rownames_to_column(var = "Split"),
-  file.path(out_dir, "metrics_train_vs_test.csv")
-)
-
-# Zusätzlich: Einzel-Metriken (nur Test, wie bisher)
-readr::write_csv(
-  data.frame(t(metrics_test)) %>% rownames_to_column(var = "Metric") %>% rename(Value = `data.frame.t.metrics_test...`),
-  file.path(out_dir, "metrics_test_only.csv")
-)
-
-# -------------------------------------------------------
-# Modell speichern (wie bisher)
+# Modell speichern
 # -------------------------------------------------------
 saveRDS(model_xgb, file.path(out_dir, "model_xgb.rds"))
 
