@@ -1,121 +1,154 @@
 # -------------------------------------------------------
-# 1. Pakete laden
+# Pakete
 # -------------------------------------------------------
-packages <- c("tidyverse", "randomForest", "pROC", "scales", "caret")
-
+packages <- c("tidyverse","caret","pROC","randomForest","ggplot2")
 installed <- rownames(installed.packages())
-for (pkg in packages) {
-  if (!pkg %in% installed) install.packages(pkg)
-}
-lapply(packages, library, character.only = TRUE)
+for (pkg in packages) if (!pkg %in% installed) install.packages(pkg)
+invisible(lapply(packages, library, character.only = TRUE))
 
-# -------------------------------------------------------
-# 2. Daten einlesen
-# -------------------------------------------------------
-train_data <- read_csv("Step3/train_data.csv")
-test_data  <- read_csv("Step3/test_data.csv")
-
-# -------------------------------------------------------
-# 3. Zielvariable vorbereiten (0/1 → neg/pos für binary classification)
-# -------------------------------------------------------
-train_data$y <- factor(train_data$y, levels = c(0, 1), labels = c("neg", "pos"))
-test_data$y  <- factor(test_data$y,  levels = c(0, 1), labels = c("neg", "pos"))
-
-# -------------------------------------------------------
-# 4. Random Forest Modell trainieren (ohne CV, ohne Tuning)
-# -------------------------------------------------------
 set.seed(123)
-model_rf <- randomForest(y ~ ., data = train_data, importance = TRUE)
+
+# -------------------------------------------------------
+# Daten laden & Zielvariable
+# -------------------------------------------------------
+train_data <- readr::read_csv("Step3/train_data.csv")
+test_data  <- readr::read_csv("Step3/test_data.csv")
+
+train_data$y <- factor(train_data$y, levels = c(0,1), labels = c("neg","pos"))
+test_data$y  <- factor(test_data$y,  levels = c(0,1), labels = c("neg","pos"))
+
+# -------------------------------------------------------
+# Basismodell Random Forest OHNE Cross-Validation
+#  - caret: method = "none" -> kein Tuning, keine CV
+#  - tuneGrid: genau EINE Zeile = feste Hyperparameter
+# -------------------------------------------------------
+p <- ncol(train_data) - 1L                    # Anzahl Features (ohne Zielvariable)
+mtry_default <- max(1L, floor(sqrt(p)))       # übliche RF-Default-Heuristik
+
+ctrl_none <- trainControl(
+  method = "none",
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+rf_grid <- data.frame(mtry = mtry_default)
+
+model_rf <- train(
+  y ~ ., data = train_data,
+  method = "rf",
+  trControl = ctrl_none,
+  tuneGrid  = rf_grid,
+  metric    = "ROC",
+  ntree     = 500,        # solide Basis
+  importance = TRUE
+)
 
 print(model_rf)
 
 # -------------------------------------------------------
-# 5. Vorhersagen auf Testdaten
+# Predictions: TRAIN & TEST
 # -------------------------------------------------------
-# Klassenvorhersage
-pred_class <- predict(model_rf, test_data)
+# TRAIN
+pred_train_prob  <- predict(model_rf, train_data, type = "prob")[, "pos"]
+pred_train_class <- predict(model_rf, train_data)
 
-# Wahrscheinlichkeiten (für "pos")
-pred_prob <- predict(model_rf, test_data, type = "prob")[, "pos"]
-
-# -------------------------------------------------------
-# 6. Confusion Matrix & Standardmetriken
-# -------------------------------------------------------
-cm <- confusionMatrix(pred_class, test_data$y, positive = "pos")
-
-accuracy <- cm$overall["Accuracy"]
-precision <- cm$byClass["Precision"]
-recall <- cm$byClass["Recall"]
-f1 <- cm$byClass["F1"]
+# TEST
+pred_test_prob   <- predict(model_rf, test_data,  type = "prob")[, "pos"]
+pred_test_class  <- predict(model_rf, test_data)
 
 # -------------------------------------------------------
-# 7. ROC & AUC (explizit pROC:: verwenden)
+# ROC / AUC
 # -------------------------------------------------------
-roc_obj <- roc(response = test_data$y, predictor = pred_prob)
-auc_value <- pROC::auc(roc_obj)
-plot(roc_obj, col = "blue", main = "ROC Curve")
+roc_train <- pROC::roc(train_data$y, pred_train_prob, levels = c("neg","pos"), direction = "<")
+auc_train <- as.numeric(pROC::auc(roc_train))
+
+roc_test  <- pROC::roc(test_data$y,  pred_test_prob,  levels = c("neg","pos"), direction = "<")
+auc_test  <- as.numeric(pROC::auc(roc_test))
 
 # -------------------------------------------------------
-# 8. Log Loss (manuell berechnet)
+# Confusion Matrices (Cutoff 0.5)
 # -------------------------------------------------------
-eps <- 1e-15  # zur Vermeidung von log(0)
-pred_prob_clipped <- pmin(pmax(pred_prob, eps), 1 - eps)
-y_true <- as.numeric(test_data$y == "pos")
-logloss_value <- -mean(y_true * log(pred_prob_clipped) + (1 - y_true) * log(1 - pred_prob_clipped))
+cm_train <- caret::confusionMatrix(pred_train_class, train_data$y, positive = "pos")
+cm_test  <- caret::confusionMatrix(pred_test_class,  test_data$y,  positive = "pos")
 
 # -------------------------------------------------------
-# 9. Brier Score
+# Metriken (stabiler LogLoss & Brier)
 # -------------------------------------------------------
-brier_score <- mean((y_true - pred_prob)^2)
+eps <- 1e-15
 
-# -------------------------------------------------------
-# 10. Calibration Curve
-# -------------------------------------------------------
-calibration_df <- data.frame(
-  prob = pred_prob,
-  actual = y_true
-) %>%
-  mutate(prob_bin = cut(prob, breaks = seq(0, 1, by = 0.1))) %>%
-  group_by(prob_bin) %>%
-  summarise(
-    mean_pred = mean(prob),
-    mean_obs  = mean(actual),
-    .groups = "drop"
-  )
+# TRAIN
+pp_tr  <- pmin(pmax(pred_train_prob, eps), 1 - eps)
+y01_tr <- as.numeric(train_data$y == "pos")
+logloss_tr <- -mean(y01_tr * log(pp_tr) + (1 - y01_tr) * log(1 - pp_tr))
+brier_tr   <- mean((y01_tr - pred_train_prob)^2)
 
-ggplot(calibration_df, aes(x = mean_pred, y = mean_obs)) +
-  geom_line(color = "blue") +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
-  labs(
-    x = "Predicted Probability",
-    y = "Observed Frequency",
-    title = "Calibration Curve"
-  ) +
-  coord_equal()
+# TEST
+pp_te  <- pmin(pmax(pred_test_prob, eps), 1 - eps)
+y01_te <- as.numeric(test_data$y == "pos")
+logloss_te <- -mean(y01_te * log(pp_te) + (1 - y01_te) * log(1 - pp_te))
+brier_te   <- mean((y01_te - pred_test_prob)^2)
 
-# -------------------------------------------------------
-# 11. Alle Metriken zusammenfassen
-# -------------------------------------------------------
-cat("📊 Evaluation auf Testdaten:\n")
-cat("-------------------------------------\n")
-cat("Accuracy    :", round(accuracy, 3), "\n")
-cat("Precision   :", round(precision, 3), "\n")
-cat("Recall      :", round(recall, 3), "\n")
-cat("F1 Score    :", round(f1, 3), "\n")
-cat("AUC         :", round(auc_value, 3), "\n")
-cat("Log Loss    :", round(logloss_value, 3), "\n")
-cat("Brier Score :", round(brier_score, 3), "\n")
-
-saveRDS(model_rf, file = "model_rf.rds")
-
-metrics_df <- data.frame(
-  Accuracy     = accuracy,
-  Precision    = precision,
-  Recall       = recall,
-  F1_Score     = f1,
-  AUC          = as.numeric(auc_value),
-  Log_Loss     = logloss_value,
-  Brier_Score  = brier_score
+metrics_train <- c(
+  Accuracy    = cm_train$overall["Accuracy"],
+  Precision   = cm_train$byClass["Precision"],
+  Recall      = cm_train$byClass["Recall"],
+  F1_Score    = cm_train$byClass["F1"],
+  AUC         = auc_train,
+  Log_Loss    = logloss_tr,
+  Brier_Score = brier_tr
 )
 
-write.csv(metrics_df, "model_metrics.csv", row.names = FALSE)
+metrics_test <- c(
+  Accuracy    = cm_test$overall["Accuracy"],
+  Precision   = cm_test$byClass["Precision"],
+  Recall      = cm_test$byClass["Recall"],
+  F1_Score    = cm_test$byClass["F1"],
+  AUC         = auc_test,
+  Log_Loss    = logloss_te,
+  Brier_Score = brier_te
+)
+
+metrics_train_test <- rbind(Train = metrics_train, Test = metrics_test) %>% as.data.frame()
+print(round(metrics_train_test, 4))
+
+# -------------------------------------------------------
+# Speicherung
+# -------------------------------------------------------
+out_dir  <- "Models/RF"
+plot_dir <- file.path(out_dir, "plots")
+dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Confusion Matrices als TXT
+capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
+capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))
+
+# Metriken speichern
+metrics_train_test %>%
+  tibble::rownames_to_column("Split") %>%
+  readr::write_csv(file.path(out_dir, "metrics_train_vs_test.csv"))
+
+# -------------------------------------------------------
+# ROC-Plots als PDF (Train, Test, Vergleich)
+# -------------------------------------------------------
+p_train <- pROC::ggroc(roc_train) +
+  ggplot2::ggtitle(sprintf("ROC (TRAIN) — AUC = %.3f", auc_train)) +
+  ggplot2::theme_minimal()
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train.pdf"), plot = p_train, width = 6, height = 5)
+
+p_test <- pROC::ggroc(roc_test) +
+  ggplot2::ggtitle(sprintf("ROC (TEST) — AUC = %.3f", auc_test)) +
+  ggplot2::theme_minimal()
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Test.pdf"), plot = p_test, width = 6, height = 5)
+
+p_both <- pROC::ggroc(list(Train = roc_train, Test = roc_test)) +
+  ggplot2::ggtitle(sprintf("ROC — Train (AUC=%.3f) vs. Test (AUC=%.3f)", auc_train, auc_test)) +
+  ggplot2::theme_minimal() +
+  ggplot2::labs(linetype = "Split", color = "Split")
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_vs_Test.pdf"), plot = p_both, width = 6, height = 5)
+
+# -------------------------------------------------------
+# Modell speichern
+# -------------------------------------------------------
+saveRDS(model_rf, file.path(out_dir, "model_rf.rds"))
+
+message("Fertig. Alle Ergebnisse unter: ", normalizePath(out_dir))
