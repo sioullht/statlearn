@@ -1,8 +1,15 @@
+
 ========================
-Run gestartet: 2025-08-14 11:50:33
+Run gestartet: 2025-08-15 15:45:26
 Cores: 7
 CV-Folds: 5
 Grid-Kombinationen: 972
 Fits (Grid x Folds): 4860
 pos_rate: 0.4997 | scale_pos_weight: 1.0011
 ------------------------
+Training gestartet um: 2025-08-15 15:45:26
+Training beendet  um: 2025-08-15 18:56:56
+Gesamtdauer (Minuten): 191.5
+BestTune:    nrounds max_depth  eta gamma colsample_bytree min_child_weight subsample 61     300         2 0.03     1              0.8                5       0.7
+========================
+Gewählter Cutoff (F1-optimal, OOF):  0.36 

@@ -18,12 +18,13 @@ train_data$y <- factor(train_data$y, levels = c(0,1), labels = c("neg","pos"))
 test_data$y  <- factor(test_data$y,  levels = c(0,1), labels = c("neg","pos"))
 
 # -------------------------------------------------------
-# Basismodell Random Forest OHNE Cross-Validation
-#  - caret: method = "none" -> kein Tuning, keine CV
-#  - tuneGrid: genau EINE Zeile = feste Hyperparameter
+# Basismodell Random Forest (OHNE CV/Tuning)
+#   -> fester mtry + konservative Regularisierung:
+#      - nodesize erhöht  (z.B. 5)  -> größere Blätter, weniger Overfit
+#      - maxnodes begrenzt (z.B. 32) -> flachere Bäume
 # -------------------------------------------------------
-p <- ncol(train_data) - 1L                    # Anzahl Features (ohne Zielvariable)
-mtry_default <- max(1L, floor(sqrt(p)))       # übliche RF-Default-Heuristik
+p <- ncol(train_data) - 1L
+mtry_fixed <- max(1L, floor(sqrt(p)))   # übliche Heuristik
 
 ctrl_none <- trainControl(
   method = "none",
@@ -31,15 +32,15 @@ ctrl_none <- trainControl(
   summaryFunction = twoClassSummary
 )
 
-rf_grid <- data.frame(mtry = mtry_default)
-
 model_rf <- train(
   y ~ ., data = train_data,
   method = "rf",
   trControl = ctrl_none,
-  tuneGrid  = rf_grid,
+  tuneGrid  = data.frame(mtry = mtry_fixed),  # genau 1 Zeile = kein Tuning
   metric    = "ROC",
-  ntree     = 500,        # solide Basis
+  ntree     = 500,
+  nodesize  = 5,     # <— Regularisierung
+  maxnodes  = 32,    # <— Regularisierung
   importance = TRUE
 )
 

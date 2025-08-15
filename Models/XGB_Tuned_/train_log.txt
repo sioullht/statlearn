@@ -1,0 +1,14 @@
+========================
+Run gestartet: 2025-08-15 19:04:16
+Cores: 7
+CV-Folds: 5
+Max Random Combos: 50
+pos_rate: 0.4997 | scale_pos_weight: 1.0011
+------------------------
+========================
+Run gestartet: 2025-08-15 19:04:24
+Cores: 7
+CV-Folds: 5
+Max Random Combos: 50
+pos_rate: 0.4997 | scale_pos_weight: 1.0011
+------------------------
