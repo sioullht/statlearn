@@ -1,153 +1,167 @@
 # -------------------------------------------------------
-# 1. Pakete laden
+# Pakete
 # -------------------------------------------------------
-packages <- c("tidyverse", "ranger", "pROC", "scales", "caret")
-
+packages <- c("tidyverse","caret","pROC","randomForest","ggplot2","doParallel")
 installed <- rownames(installed.packages())
-for (pkg in packages) {
-  if (!pkg %in% installed) install.packages(pkg)
-}
-lapply(packages, library, character.only = TRUE)
+for (pkg in packages) if (!pkg %in% installed) install.packages(pkg)
+invisible(lapply(packages, library, character.only = TRUE))
 
-# -------------------------------------------------------
-# 2. Daten einlesen
-# -------------------------------------------------------
-train_data <- read_csv("Step3/train_data.csv")
-test_data  <- read_csv("Step3/test_data.csv")
-
-# -------------------------------------------------------
-# 3. Zielvariable vorbereiten
-# -------------------------------------------------------
-train_data$y <- factor(train_data$y, levels = c(0, 1), labels = c("neg", "pos"))
-test_data$y  <- factor(test_data$y,  levels = c(0, 1), labels = c("neg", "pos"))
-
-# -------------------------------------------------------
-# 4. Hyperparameter-Tuning mit ranger & caret::train()
-# -------------------------------------------------------
 set.seed(123)
 
-# Cross-Validation definieren
-control <- trainControl(
+# -------------------------------------------------------
+# Daten laden & Zielvariable
+# -------------------------------------------------------
+train_data <- readr::read_csv("Step3/train_data.csv")
+test_data  <- readr::read_csv("Step3/test_data.csv")
+
+train_data$y <- factor(train_data$y, levels = c(0,1), labels = c("neg","pos"))
+test_data$y  <- factor(test_data$y,  levels = c(0,1), labels = c("neg","pos"))
+
+# -------------------------------------------------------
+# Parallelisierung
+# -------------------------------------------------------
+n_cores <- max(1, parallel::detectCores() - 1)
+cl <- parallel::makeCluster(n_cores)
+doParallel::registerDoParallel(cl)
+
+# -------------------------------------------------------
+# TrainControl für CV
+# -------------------------------------------------------
+ctrl_cv <- trainControl(
   method = "cv",
   number = 5,
   classProbs = TRUE,
-  summaryFunction = twoClassSummary
+  summaryFunction = twoClassSummary,
+  savePredictions = "final",
+  allowParallel = TRUE
 )
 
-# Parameter-Raster definieren
-tune_grid <- expand.grid(
-  mtry = c(2, 4, 6, 8),
-  splitrule = c("gini", "extratrees"),
-  min.node.size = c(1, 5, 10)
+# -------------------------------------------------------
+# Grid für mtry (Variablen pro Split)
+# -------------------------------------------------------
+p <- ncol(train_data) - 1L
+rf_grid <- expand.grid(
+  mtry = floor(seq(2, sqrt(p)*2, length.out = 6)) # z.B. 6 Werte
 )
 
-# Modelltraining mit Tuning
-model_rf <- train(
-  y ~ .,
-  data = train_data,
-  method = "ranger",
-  trControl = control,
-  tuneGrid = tune_grid,
-  metric = "ROC",
-  importance = "impurity"
+# -------------------------------------------------------
+# Training RF mit CV + GridSearch
+# -------------------------------------------------------
+set.seed(123)
+model_rf_tuned <- train(
+  y ~ ., data = train_data,
+  method = "rf",
+  trControl = ctrl_cv,
+  tuneGrid  = rf_grid,
+  metric    = "ROC",
+  ntree     = 500,
+  nodesize  = 5,     # etwas Regularisierung
+  maxnodes  = 32,    # Begrenzung Baumgröße
+  importance = TRUE
 )
 
-print(model_rf)
-plot(model_rf)
+print(model_rf_tuned)
 
 # -------------------------------------------------------
-# 5. Vorhersagen auf Testdaten
+# Predictions: TRAIN & TEST
 # -------------------------------------------------------
-pred_class <- predict(model_rf, test_data)
-pred_prob <- predict(model_rf, test_data, type = "prob")[, "pos"]
+pred_train_prob  <- predict(model_rf_tuned, train_data, type = "prob")[, "pos"]
+pred_train_class <- predict(model_rf_tuned, train_data)
+
+pred_test_prob   <- predict(model_rf_tuned, test_data,  type = "prob")[, "pos"]
+pred_test_class  <- predict(model_rf_tuned, test_data)
 
 # -------------------------------------------------------
-# 6. Confusion Matrix & Metriken
+# ROC / AUC
 # -------------------------------------------------------
-cm <- confusionMatrix(pred_class, test_data$y, positive = "pos")
+roc_train <- pROC::roc(train_data$y, pred_train_prob, levels = c("neg","pos"), direction = "<")
+auc_train <- as.numeric(pROC::auc(roc_train))
 
-accuracy <- cm$overall["Accuracy"]
-precision <- cm$byClass["Precision"]
-recall <- cm$byClass["Recall"]
-f1 <- cm$byClass["F1"]
-
-# -------------------------------------------------------
-# 7. ROC & AUC
-# -------------------------------------------------------
-roc_obj <- roc(response = test_data$y, predictor = pred_prob)
-auc_value <- pROC::auc(roc_obj)
-
-# Sicherstellen, dass Verzeichnis existiert
-dir.create("Models/RF_Tuned", recursive = TRUE, showWarnings = FALSE)
-
-# ROC speichern
-pdf("Models/RF_Tuned/roc_curve.pdf", width = 8, height = 6)
-plot(roc_obj, col = "blue", main = "ROC Curve")
-dev.off()
+roc_test  <- pROC::roc(test_data$y,  pred_test_prob,  levels = c("neg","pos"), direction = "<")
+auc_test  <- as.numeric(pROC::auc(roc_test))
 
 # -------------------------------------------------------
-# 8. Log Loss
+# Confusion Matrices
+# -------------------------------------------------------
+cm_train <- caret::confusionMatrix(pred_train_class, train_data$y, positive = "pos")
+cm_test  <- caret::confusionMatrix(pred_test_class,  test_data$y,  positive = "pos")
+
+# -------------------------------------------------------
+# Metriken (inkl. LogLoss & Brier)
 # -------------------------------------------------------
 eps <- 1e-15
-pred_prob_clipped <- pmin(pmax(pred_prob, eps), 1 - eps)
-y_true <- as.numeric(test_data$y == "pos")
-logloss_value <- -mean(y_true * log(pred_prob_clipped) + (1 - y_true) * log(1 - pred_prob_clipped))
+
+pp_tr  <- pmin(pmax(pred_train_prob, eps), 1 - eps)
+y01_tr <- as.numeric(train_data$y == "pos")
+logloss_tr <- -mean(y01_tr * log(pp_tr) + (1 - y01_tr) * log(1 - pp_tr))
+brier_tr   <- mean((y01_tr - pred_train_prob)^2)
+
+pp_te  <- pmin(pmax(pred_test_prob, eps), 1 - eps)
+y01_te <- as.numeric(test_data$y == "pos")
+logloss_te <- -mean(y01_te * log(pp_te) + (1 - pp_te) * log(1 - pp_te))
+brier_te   <- mean((y01_te - pred_test_prob)^2)
+
+metrics_train <- c(
+  Accuracy    = cm_train$overall["Accuracy"],
+  Precision   = cm_train$byClass["Precision"],
+  Recall      = cm_train$byClass["Recall"],
+  F1_Score    = cm_train$byClass["F1"],
+  AUC         = auc_train,
+  Log_Loss    = logloss_tr,
+  Brier_Score = brier_tr
+)
+
+metrics_test <- c(
+  Accuracy    = cm_test$overall["Accuracy"],
+  Precision   = cm_test$byClass["Precision"],
+  Recall      = cm_test$byClass["Recall"],
+  F1_Score    = cm_test$byClass["F1"],
+  AUC         = auc_test,
+  Log_Loss    = logloss_te,
+  Brier_Score = brier_te
+)
+
+metrics_train_test <- rbind(Train = metrics_train, Test = metrics_test) %>% as.data.frame()
+print(round(metrics_train_test, 4))
 
 # -------------------------------------------------------
-# 9. Brier Score
+# Speicherung
 # -------------------------------------------------------
-brier_score <- mean((y_true - pred_prob)^2)
+out_dir  <- "Models/RF_Tuned"
+plot_dir <- file.path(out_dir, "plots")
+dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 
-# -------------------------------------------------------
-# 10. Calibration Curve
-# -------------------------------------------------------
-calibration_df <- data.frame(
-  prob = pred_prob,
-  actual = y_true
-) %>%
-  mutate(prob_bin = cut(prob, breaks = seq(0, 1, by = 0.1))) %>%
-  group_by(prob_bin) %>%
-  summarise(
-    mean_pred = mean(prob),
-    mean_obs  = mean(actual),
-    .groups = "drop"
-  )
+# Confusion Matrices
+capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
+capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))
 
-ggplot(calibration_df, aes(x = mean_pred, y = mean_obs)) +
-  geom_line(color = "blue") +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
-  labs(
-    x = "Predicted Probability",
-    y = "Observed Frequency",
-    title = "Calibration Curve"
-  ) +
-  coord_equal()
+# Metriken speichern
+metrics_train_test %>%
+  tibble::rownames_to_column("Split") %>%
+  readr::write_csv(file.path(out_dir, "metrics_train_vs_test.csv"))
 
-# -------------------------------------------------------
-# 11. Evaluation speichern
-# -------------------------------------------------------
-cat("📊 Evaluation auf Testdaten:\n")
-cat("-------------------------------------\n")
-cat("Accuracy    :", round(accuracy, 3), "\n")
-cat("Precision   :", round(precision, 3), "\n")
-cat("Recall      :", round(recall, 3), "\n")
-cat("F1 Score    :", round(f1, 3), "\n")
-cat("AUC         :", round(auc_value, 3), "\n")
-cat("Log Loss    :", round(logloss_value, 3), "\n")
-cat("Brier Score :", round(brier_score, 3), "\n")
+# ROC-Plots
+p_train <- pROC::ggroc(roc_train) +
+  ggplot2::ggtitle(sprintf("ROC (TRAIN) — AUC = %.3f", auc_train)) +
+  ggplot2::theme_minimal()
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train.pdf"), plot = p_train, width = 6, height = 5)
+
+p_test <- pROC::ggroc(roc_test) +
+  ggplot2::ggtitle(sprintf("ROC (TEST) — AUC = %.3f", auc_test)) +
+  ggplot2::theme_minimal()
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Test.pdf"), plot = p_test, width = 6, height = 5)
+
+p_both <- pROC::ggroc(list(Train = roc_train, Test = roc_test)) +
+  ggplot2::ggtitle(sprintf("ROC — Train (AUC=%.3f) vs. Test (AUC=%.3f)", auc_train, auc_test)) +
+  ggplot2::theme_minimal() +
+  ggplot2::labs(linetype = "Split", color = "Split")
+ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_vs_Test.pdf"), plot = p_both, width = 6, height = 5)
 
 # Modell speichern
-saveRDS(model_rf, file = "Models/RF_Tuned/model_rf_tuned.rds")
+saveRDS(model_rf_tuned, file.path(out_dir, "model_rf_tuned.rds"))
 
-# Metriken exportieren
-metrics_df <- data.frame(
-  Accuracy     = accuracy,
-  Precision    = precision,
-  Recall       = recall,
-  F1_Score     = f1,
-  AUC          = as.numeric(auc_value),
-  Log_Loss     = logloss_value,
-  Brier_Score  = brier_score
-)s
+# Cluster stoppen
+parallel::stopCluster(cl)
+foreach::registerDoSEQ()
 
-write.csv(metrics_df, "Models/RF_Tuned/model_metrics_tuned.csv", row.names = FALSE)
+message("Fertig. Alle Ergebnisse unter: ", normalizePath(out_dir))
