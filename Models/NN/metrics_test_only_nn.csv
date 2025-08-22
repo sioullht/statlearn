@@ -1,0 +1,8 @@
+Metric,Value
+Accuracy.Accuracy,0.639
+Precision.Precision,0.646
+Recall.Recall,0.626
+F1_Score.F1,0.636
+AUC,0.696
+Log_Loss,0.637
+Brier_Score,0.223
