@@ -13,3 +13,26 @@ Gesamtdauer (Minuten): 191.5
 BestTune:    nrounds max_depth  eta gamma colsample_bytree min_child_weight subsample 61     300         2 0.03     1              0.8                5       0.7
 ========================
 Gewählter Cutoff (F1-optimal, OOF):  0.36 
+========================
+Run gestartet: 2025-08-22 12:31:40
+Cores: 7
+CV-Folds: 5
+Grid-Kombinationen: 972
+Fits (Grid x Folds): 4860
+pos_rate: 0.4997 | scale_pos_weight: 1
+------------------------
+========================
+Run gestartet: 2025-08-22 17:25:34
+Cores: 7
+CV-Folds: 5
+Grid-Kombinationen: 972
+Fits (Grid x Folds): 4860
+pos_rate: 0.4997 | scale_pos_weight: 1
+------------------------
+Training gestartet um: 2025-08-22 17:25:34
+Training beendet  um: 2025-08-22 19:22:35
+Gesamtdauer (Minuten): 117.02
+BestTune:    nrounds max_depth  eta gamma colsample_bytree min_child_weight subsample 61     300         2 0.03     1              0.8                5       0.7
+========================
+OOF AUC raw=0.7152 | calibrated=0.7152
+Gewählter Cutoff (F1-optimal, OOF):  0.37 
