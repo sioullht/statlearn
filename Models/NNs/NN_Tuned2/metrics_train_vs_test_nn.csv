@@ -1,0 +1,8 @@
+Metric,Train,Test
+Accuracy.Accuracy,0.664,0.652
+Precision.Precision,0.669,0.66
+Recall.Recall,0.65,0.637
+F1_Score.F1,0.659,0.648
+AUC,0.729,0.709
+Log_Loss,0.607,0.621
+Brier_Score,0.21,0.217
