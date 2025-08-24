@@ -1,0 +1,3 @@
+Model,Accuracy,Precision,Recall,F1_Score,AUC,Log_Loss,Brier_Score
+RFE_CrossValidation,0.6487,0.6515,0.651,0.6512,0.7116,0.6199,0.2157
+RFE_Bootstrapping,0.6487,0.6515,0.651,0.6512,0.7116,0.6199,0.2157

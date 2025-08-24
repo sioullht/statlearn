@@ -1,9 +1,9 @@
 Confusion Matrix and Statistics
 
           Reference
-Prediction Spieler2 Spieler1
-  Spieler2     2464     1351
-  Spieler1     1348     2520
+Prediction Spieler1 Spieler2
+  Spieler1     2520     1348
+  Spieler2     1351     2464
                                           
                Accuracy : 0.6487          
                  95% CI : (0.6379, 0.6594)

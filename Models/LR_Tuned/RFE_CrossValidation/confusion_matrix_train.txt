@@ -1,0 +1,27 @@
+Confusion Matrix and Statistics
+
+          Reference
+Prediction Spieler1 Spieler2
+  Spieler1     5858     3060
+  Spieler2     3101     5909
+                                          
+               Accuracy : 0.6563          
+                 95% CI : (0.6493, 0.6633)
+    No Information Rate : 0.5003          
+    P-Value [Acc > NIR] : <2e-16          
+                                          
+                  Kappa : 0.3127          
+                                          
+ Mcnemar's Test P-Value : 0.6103          
+                                          
+            Sensitivity : 0.6539          
+            Specificity : 0.6588          
+         Pos Pred Value : 0.6569          
+         Neg Pred Value : 0.6558          
+             Prevalence : 0.4997          
+         Detection Rate : 0.3268          
+   Detection Prevalence : 0.4974          
+      Balanced Accuracy : 0.6563          
+                                          
+       'Positive' Class : Spieler1        
+                                          
