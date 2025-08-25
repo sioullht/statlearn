@@ -1,9 +1,3 @@
-# =======================================================
-# Vergleichsskript: sammelt alle Modell-Metriken unter "Models/"
-# und baut eine gemeinsame Übersichtstabelle + Plot
-# =======================================================
-
-# Pakete -------------------------------------------------
 packages <- c("tidyverse","readr","stringr","ggplot2")
 installed <- rownames(installed.packages())
 for (p in packages) if (!p %in% installed) install.packages(p, dependencies = TRUE)
