@@ -6,7 +6,7 @@ library(dplyr)
 library(ggplot2)
 
 #📥 CSV einlesen – passe den Pfad ggf. an, falls df nicht existiert
-df <- read.csv("/Users/louisleicht/Statistical_Learning/ATP_ViLo_final.csv")
+df <- read.csv("Step1/DP_Step1_Reordered.csv")
 
 # ✅ Sicherstellen, dass df existiert und korrekt ist
 if (!("data.frame" %in% class(df))) {

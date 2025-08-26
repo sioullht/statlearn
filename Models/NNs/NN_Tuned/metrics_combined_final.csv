@@ -1,0 +1,8 @@
+Metric,Test,CV10_Mean
+Accuracy.Accuracy,0.646,0.65
+Precision.Precision,0.665,0.647
+Recall.Recall,0.6,0.657
+F1_Score.F1,0.631,0.652
+AUC,0.709,0.711
+Log_Loss,0.622,0.621
+Brier_Score,0.217,0.216

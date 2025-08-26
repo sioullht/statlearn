@@ -1,8 +1,0 @@
-Metric,Test,CV10_Mean,Bootstrap_Mean
-Accuracy.Accuracy,0.652,0.64,0.626
-Precision.Precision,0.66,0.636,0.625
-Recall.Recall,0.637,0.656,0.635
-F1_Score.F1,0.648,0.645,0.629
-AUC,0.709,0.699,0.677
-Log_Loss,0.621,0.629,0.661
-Brier_Score,0.217,0.22,0.231
