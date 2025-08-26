@@ -1,0 +1,8 @@
+Metric,Mean,SD
+AUC,0.7158,0.0098
+Accuracy,0.6555,0.0109
+Brier_Score,0.2141,0.0029
+F1_Score,0.6544,0.0112
+Log_Loss,0.6156,0.0066
+Precision,0.6562,0.012
+Recall,0.6526,0.0144

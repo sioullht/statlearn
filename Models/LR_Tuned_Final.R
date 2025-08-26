@@ -13,10 +13,8 @@ invisible(lapply(packages, library, character.only = TRUE))
 set.seed(123)
 
 
-### NEU: HELPER-FUNKTIONEN ###
+### HELPER-FUNKTIONEN ###
 # -------------------------------------------------------
-# Diese Funktionen helfen uns, die Ergebnisse der zweiten CV auszuwerten.
-
 # (1) Berechnet einen Satz von Metriken aus Vorhersagen
 compute_metrics <- function(y_true_factor, prob_pos, class_pred, positive = "Spieler1") {
   eps <- 1e-15
@@ -40,10 +38,7 @@ compute_metrics <- function(y_true_factor, prob_pos, class_pred, positive = "Spi
 
 # (2) Fasst die Metriken aus den CV-Folds zusammen (Mittelwert, SD, etc.)
 summarize_resampling <- function(model, positive = "Spieler1") {
-  # Extrahieren der Vorhersagen für jeden Fold
   preds <- model$pred
-
-  # Berechne Metriken für jeden einzelnen Fold
   resampled_metrics <- preds %>%
     dplyr::group_by(Resample) %>%
     dplyr::summarise(
@@ -54,8 +49,6 @@ summarize_resampling <- function(model, positive = "Spieler1") {
         positive      = positive
       ))
     )
-
-  # Aggregiere die Metriken über alle Folds
   aggregated_summary <- resampled_metrics %>%
     dplyr::select(-Resample) %>%
     tidyr::pivot_longer(cols = dplyr::everything(), names_to = "Metric", values_to = "Value") %>%
@@ -88,7 +81,7 @@ rfe_control <- rfeControl(
   functions = lrFuncs,
   method = "cv",
   number = 10,
-  verbose = FALSE # Auf FALSE gesetzt für eine sauberere Ausgabe
+  verbose = FALSE
 )
 
 rfe_profile <- rfe(
@@ -105,25 +98,21 @@ message(paste("\nOptimale Anzahl an Features gefunden:", length(best_features)))
 print(best_features)
 
 
-### NEU: PHASE 2 ###
 # -------------------------------------------------------
 # PHASE 2: Stabilitätsanalyse mit zweiter Kreuzvalidierung
 # -------------------------------------------------------
 message("\nPHASE 2: Starte zweite CV zur Stabilitätsanalyse des finalen Modells...")
 
-# Daten nur mit den besten Features vorbereiten
 train_data_rfe <- train_data[, c("y", best_features)]
 
-# Steuerung für die zweite CV definieren
 ctrl_cv_eval <- trainControl(
   method = "cv",
   number = 10,
   classProbs = TRUE,
-  summaryFunction = twoClassSummary, # Wichtig für AUC
-  savePredictions = "final" # Entscheidend, um Fold-Ergebnisse zu speichern
+  summaryFunction = twoClassSummary,
+  savePredictions = "final"
 )
 
-# Modell mit den RFE-Features in einer neuen 10-fachen CV trainieren
 model_final_cv <- train(
   y ~ ., data = train_data_rfe,
   method = "glm",
@@ -132,45 +121,53 @@ model_final_cv <- train(
   metric = "ROC"
 )
 
-# Ergebnisse der zweiten CV auswerten (Mittelwert und Streuung der Metriken)
 cv_stability_stats <- summarize_resampling(model_final_cv, positive = "Spieler1")
 
 message("\n--- Ergebnisse der Stabilitätsanalyse (aus 10-facher CV) ---")
-print(round(cv_stability_stats, 4))
+print(cv_stability_stats %>% dplyr::mutate(across(where(is.numeric), ~ round(., 4))))
 # -------------------------------------------------------
 
 
-### ANGEPASST: FINALE MODELL-EVALUATION ###
 # -------------------------------------------------------
-# Wir verwenden jetzt das Modell aus der zweiten CV (`model_final_cv`) für die finale Bewertung.
+# FINALE MODELL-EVALUATION
+# -------------------------------------------------------
 message("\nFINALE EVALUATION: Bewerte das finale Modell auf dem ungesehenen Test-Set...")
 
-# Predictions
 pred_train_prob  <- predict(model_final_cv, train_data_rfe, type = "prob")[, "Spieler1"]
 pred_test_prob   <- predict(model_final_cv, test_data,      type = "prob")[, "Spieler1"]
 pred_train_class <- predict(model_final_cv, train_data_rfe)
 pred_test_class  <- predict(model_final_cv, test_data)
 
-# Metriken für Train- und Test-Set berechnen
 metrics_train <- compute_metrics(train_data$y, pred_train_prob, pred_train_class)
 metrics_test  <- compute_metrics(test_data$y, pred_test_prob, pred_test_class)
 metrics_summary <- dplyr::bind_rows(Train = metrics_train, Test = metrics_test, .id = "Split")
 
 message("\n--- Finale Metriken (Train vs. Test) ---")
-print(round(metrics_summary, 4))
+### KORREKTUR 1 ###
+# Wende round() nur auf numerische Spalten an, bevor das Ergebnis ausgegeben wird.
+print(metrics_summary %>% dplyr::mutate(across(where(is.numeric), ~ round(., 4))))
 # -------------------------------------------------------
 
 
-### ANGEPASST: ERGEBNISSE SPEICHERN ###
 # -------------------------------------------------------
-out_dir  <- "Models/LR_Tuned_Final"
+# ERGEBNISSE SPEICHERN
+# -------------------------------------------------------
+out_dir  <- "Models/LR_RFE_with_2CV"
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Finale Train/Test-Metriken speichern
-readr::write_csv(metrics_summary, file.path(out_dir, "final_model_metrics.csv"))
+### KORREKTUR 2 ###
+# Runde auch hier nur die numerischen Spalten, bevor die CSV gespeichert wird.
+metrics_summary_rounded <- metrics_summary %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(., 4)))
+readr::write_csv(metrics_summary_rounded, file.path(out_dir, "final_model_metrics.csv"))
 
-# NEU: Ergebnisse der CV-Stabilitätsanalyse speichern
-readr::write_csv(cv_stability_stats, file.path(out_dir, "cv_stability_metrics.csv"))
+# Ergebnisse der CV-Stabilitätsanalyse runden und speichern
+cv_stability_stats_rounded <- cv_stability_stats %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(., 4)))
+readr::write_csv(cv_stability_stats_rounded, file.path(out_dir, "cv_stability_metrics.csv"))
+
+# Vollständige RFE-Ergebnisse als Textdatei speichern
+capture.output(rfe_profile, file = file.path(out_dir, "rfe_results.txt"))
 
 # Finales Modell als RDS-Datei speichern
 saveRDS(model_final_cv, file.path(out_dir, "model_final_cv.rds"))
