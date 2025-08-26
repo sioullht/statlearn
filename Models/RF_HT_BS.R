@@ -1,6 +1,3 @@
-# -------------------------------------------------------
-# Pakete
-# -------------------------------------------------------
 packages <- c("tidyverse","caret","pROC","randomForest","ggplot2","doParallel")
 installed <- rownames(installed.packages())
 for (pkg in packages) if (!pkg %in% installed) install.packages(pkg)
@@ -8,25 +5,18 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 set.seed(123)
 
-# -------------------------------------------------------
 # Daten laden & Zielvariable
-# -------------------------------------------------------
 train_data <- readr::read_csv("Step3/train_data.csv")
 test_data  <- readr::read_csv("Step3/test_data.csv")
 
 train_data$y <- factor(train_data$y, levels = c(0,1), labels = c("neg","pos"))
 test_data$y  <- factor(test_data$y,  levels = c(0,1), labels = c("neg","pos"))
 
-# -------------------------------------------------------
-# Parallelisierung
-# -------------------------------------------------------
 n_cores <- max(1, parallel::detectCores() - 1)
 cl <- parallel::makeCluster(n_cores)
 doParallel::registerDoParallel(cl)
 
-# -------------------------------------------------------
-# TrainControl für CV
-# -------------------------------------------------------
+# Cross Validation
 ctrl_cv <- trainControl(
   method = "cv",
   number = 5,
@@ -36,96 +26,54 @@ ctrl_cv <- trainControl(
   allowParallel = TRUE
 )
 
-# -------------------------------------------------------
-# 1) Backward Elimination via RFE
-# -------------------------------------------------------
+# Grid für mtry (Variablen pro Split)
 p <- ncol(train_data) - 1L
-sizes <- unique(sort(c(5, 10, 20, 30, 50, 75, 100, floor(seq(0.2*p, p, length.out = 5)))))
-
-rfe_ctrl <- rfeControl(
-  functions = caretFuncs,      # erlaubt metric = "ROC"
-  method    = "cv",
-  number    = 5,
-  verbose   = FALSE,
-  allowParallel = TRUE
-)
-
-set.seed(123)
-rfe_fit <- rfe(
-  x = subset(train_data, select = -y),
-  y = train_data$y,
-  sizes = sizes,
-  rfeControl = rfe_ctrl,
-  trControl  = ctrl_cv,
-  metric     = "ROC",
-  method     = "rf",
-  tuneGrid   = expand.grid(mtry = max(1, floor(sqrt(p)))),
-  ntree      = 500
-)
-
-print(rfe_fit)
-best_vars <- predictors(rfe_fit)
-cat("Ausgewählte Features:", length(best_vars), "\n")
-
-# -------------------------------------------------------
-# 2) Dein RF-Workflow, aber nur mit den RFE-Features
-# -------------------------------------------------------
 rf_grid <- expand.grid(
-  mtry = floor(seq(2, sqrt(length(best_vars))*2, length.out = 6))
+  mtry = floor(seq(2, sqrt(p)*2, length.out = 6))
 )
 
+# Training RF mit CV + GridSearch
 set.seed(123)
 model_rf_tuned <- train(
-  x = subset(train_data, select = all_of(best_vars)),
-  y = train_data$y,
-  method    = "rf",
+  y ~ ., data = train_data,
+  method = "rf",
   trControl = ctrl_cv,
   tuneGrid  = rf_grid,
   metric    = "ROC",
   ntree     = 500,
   nodesize  = 5,
   maxnodes  = 32,
-  importance= TRUE
+  importance = TRUE
 )
 
 print(model_rf_tuned)
 
-# -------------------------------------------------------
-# Predictions: TRAIN & TEST
-# -------------------------------------------------------
-pred_train_prob  <- predict(model_rf_tuned, subset(train_data, select = all_of(best_vars)), type = "prob")[, "pos"]
-pred_train_class <- predict(model_rf_tuned, subset(train_data, select = all_of(best_vars)))
+# Predictions
+pred_train_prob  <- predict(model_rf_tuned, train_data, type = "prob")[, "pos"]
+pred_train_class <- predict(model_rf_tuned, train_data)
 
-pred_test_prob   <- predict(model_rf_tuned, subset(test_data, select = all_of(best_vars)), type = "prob")[, "pos"]
-pred_test_class  <- predict(model_rf_tuned, subset(test_data, select = all_of(best_vars)))
+pred_test_prob   <- predict(model_rf_tuned, test_data,  type = "prob")[, "pos"]
+pred_test_class  <- predict(model_rf_tuned, test_data)
 
-# -------------------------------------------------------
 # ROC / AUC
-# -------------------------------------------------------
 roc_train <- pROC::roc(train_data$y, pred_train_prob, levels = c("neg","pos"), direction = "<")
 auc_train <- as.numeric(pROC::auc(roc_train))
 
 roc_test  <- pROC::roc(test_data$y,  pred_test_prob,  levels = c("neg","pos"), direction = "<")
 auc_test  <- as.numeric(pROC::auc(roc_test))
 
-# -------------------------------------------------------
 # Confusion Matrices
-# -------------------------------------------------------
 cm_train <- caret::confusionMatrix(pred_train_class, train_data$y, positive = "pos")
 cm_test  <- caret::confusionMatrix(pred_test_class,  test_data$y,  positive = "pos")
 
-# -------------------------------------------------------
-# Metriken (inkl. LogLoss & Brier)
-# -------------------------------------------------------
+# Metriken
 eps <- 1e-15
-clip <- function(p) pmin(pmax(p, eps), 1 - eps)
-
-pp_tr  <- clip(pred_train_prob)
+pp_tr  <- pmin(pmax(pred_train_prob, eps), 1 - eps)
 y01_tr <- as.numeric(train_data$y == "pos")
 logloss_tr <- -mean(y01_tr * log(pp_tr) + (1 - y01_tr) * log(1 - pp_tr))
 brier_tr   <- mean((y01_tr - pred_train_prob)^2)
 
-pp_te  <- clip(pred_test_prob)
+pp_te  <- pmin(pmax(pred_test_prob, eps), 1 - eps)
 y01_te <- as.numeric(test_data$y == "pos")
 logloss_te <- -mean(y01_te * log(pp_te) + (1 - y01_te) * log(1 - pp_te))
 brier_te   <- mean((y01_te - pred_test_prob)^2)
@@ -154,20 +102,58 @@ metrics_train_test <- rbind(Train = metrics_train, Test = metrics_test) %>% as.d
 print(round(metrics_train_test, 4))
 
 # -------------------------------------------------------
-# Speicherung
+# Bootstrapping auf Test-Set (Konfidenzintervalle)
 # -------------------------------------------------------
-out_dir  <- "Models/RF_RFE_T_BE"
+B <- 100
+n <- nrow(test_data)
+boot_results <- replicate(B, {
+  idx <- sample(1:n, n, replace = TRUE)
+  yb <- test_data$y[idx]
+  Xb <- test_data[idx, ]
+  pred_prob_b <- predict(model_rf_tuned, Xb, type="prob")[, "pos"]
+  pred_class_b <- ifelse(pred_prob_b >= 0.5, "pos", "neg")
+  
+  cm_b <- caret::confusionMatrix(factor(pred_class_b, levels=c("neg","pos")), yb, positive="pos")
+  auc_b <- as.numeric(pROC::auc(yb, pred_prob_b, levels=c("neg","pos"), direction="<"))
+  eps <- 1e-15
+  ppb <- pmin(pmax(pred_prob_b, eps), 1 - eps)
+  y01b <- as.numeric(yb == "pos")
+  logloss_b <- -mean(y01b * log(ppb) + (1 - y01b) * log(1 - ppb))
+  brier_b   <- mean((y01b - pred_prob_b)^2)
+  
+  c(
+    Accuracy = cm_b$overall["Accuracy"],
+    AUC = auc_b,
+    Log_Loss = logloss_b,
+    Brier_Score = brier_b
+  )
+}, simplify = "matrix")
+
+boot_summary <- apply(boot_results, 1, function(x){
+  c(mean=mean(x), sd=sd(x),
+    CI_L=quantile(x, 0.025), CI_U=quantile(x, 0.975))
+})
+boot_summary <- as.data.frame(t(boot_summary))
+print(round(boot_summary, 4))
+
+# Speicherung
+out_dir  <- "Models/RF_Tuned_BS"
 plot_dir <- file.path(out_dir, "plots")
 dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Confusion Matrices
+# Speichern der Metriken
 capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
 capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))
 
-# Metriken speichern
 metrics_train_test %>%
   tibble::rownames_to_column("Split") %>%
   readr::write_csv(file.path(out_dir, "metrics_train_vs_test.csv"))
+
+# Bootstrap-Ergebnisse speichern
+readr::write_csv(
+  tibble::rownames_to_column(boot_summary, "Metric"),
+  file.path(out_dir, "metrics_test_bootstrap.csv")
+)
 
 # ROC-Plots
 p_train <- pROC::ggroc(roc_train) +
@@ -187,7 +173,7 @@ p_both <- pROC::ggroc(list(Train = roc_train, Test = roc_test)) +
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_vs_Test.pdf"), plot = p_both, width = 6, height = 5)
 
 # Modell speichern
-saveRDS(model_rf_tuned, file.path(out_dir, "model_rf_tuned.rds"))
+saveRDS(model_rf_tuned, file.path(out_dir, "model_rf_tuned_bs.rds"))
 
 # Cluster stoppen
 parallel::stopCluster(cl)

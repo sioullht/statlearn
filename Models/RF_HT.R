@@ -1,6 +1,3 @@
-# -------------------------------------------------------
-# Pakete
-# -------------------------------------------------------
 packages <- c("tidyverse","caret","pROC","randomForest","ggplot2","doParallel")
 installed <- rownames(installed.packages())
 for (pkg in packages) if (!pkg %in% installed) install.packages(pkg)
@@ -8,25 +5,19 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 set.seed(123)
 
-# -------------------------------------------------------
 # Daten laden & Zielvariable
-# -------------------------------------------------------
 train_data <- readr::read_csv("Step3/train_data.csv")
 test_data  <- readr::read_csv("Step3/test_data.csv")
 
 train_data$y <- factor(train_data$y, levels = c(0,1), labels = c("neg","pos"))
 test_data$y  <- factor(test_data$y,  levels = c(0,1), labels = c("neg","pos"))
 
-# -------------------------------------------------------
-# Parallelisierung
-# -------------------------------------------------------
+
 n_cores <- max(1, parallel::detectCores() - 1)
 cl <- parallel::makeCluster(n_cores)
 doParallel::registerDoParallel(cl)
 
-# -------------------------------------------------------
-# TrainControl für CV
-# -------------------------------------------------------
+# Cross Validation
 ctrl_cv <- trainControl(
   method = "cv",
   number = 5,
@@ -36,17 +27,13 @@ ctrl_cv <- trainControl(
   allowParallel = TRUE
 )
 
-# -------------------------------------------------------
 # Grid für mtry (Variablen pro Split)
-# -------------------------------------------------------
 p <- ncol(train_data) - 1L
 rf_grid <- expand.grid(
   mtry = floor(seq(2, sqrt(p)*2, length.out = 6)) # z.B. 6 Werte
 )
 
-# -------------------------------------------------------
 # Training RF mit CV + GridSearch
-# -------------------------------------------------------
 set.seed(123)
 model_rf_tuned <- train(
   y ~ ., data = train_data,
@@ -62,33 +49,24 @@ model_rf_tuned <- train(
 
 print(model_rf_tuned)
 
-# -------------------------------------------------------
-# Predictions: TRAIN & TEST
-# -------------------------------------------------------
 pred_train_prob  <- predict(model_rf_tuned, train_data, type = "prob")[, "pos"]
 pred_train_class <- predict(model_rf_tuned, train_data)
 
 pred_test_prob   <- predict(model_rf_tuned, test_data,  type = "prob")[, "pos"]
 pred_test_class  <- predict(model_rf_tuned, test_data)
 
-# -------------------------------------------------------
 # ROC / AUC
-# -------------------------------------------------------
 roc_train <- pROC::roc(train_data$y, pred_train_prob, levels = c("neg","pos"), direction = "<")
 auc_train <- as.numeric(pROC::auc(roc_train))
 
 roc_test  <- pROC::roc(test_data$y,  pred_test_prob,  levels = c("neg","pos"), direction = "<")
 auc_test  <- as.numeric(pROC::auc(roc_test))
 
-# -------------------------------------------------------
 # Confusion Matrices
-# -------------------------------------------------------
 cm_train <- caret::confusionMatrix(pred_train_class, train_data$y, positive = "pos")
 cm_test  <- caret::confusionMatrix(pred_test_class,  test_data$y,  positive = "pos")
 
-# -------------------------------------------------------
-# Metriken (inkl. LogLoss & Brier)
-# -------------------------------------------------------
+# Metriken 
 eps <- 1e-15
 
 pp_tr  <- pmin(pmax(pred_train_prob, eps), 1 - eps)
@@ -124,18 +102,15 @@ metrics_test <- c(
 metrics_train_test <- rbind(Train = metrics_train, Test = metrics_test) %>% as.data.frame()
 print(round(metrics_train_test, 4))
 
-# -------------------------------------------------------
 # Speicherung
-# -------------------------------------------------------
 out_dir  <- "Models/RF_Tuned"
 plot_dir <- file.path(out_dir, "plots")
 dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Confusion Matrices
+# Speichern der Metriken
 capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
 capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))
 
-# Metriken speichern
 metrics_train_test %>%
   tibble::rownames_to_column("Split") %>%
   readr::write_csv(file.path(out_dir, "metrics_train_vs_test.csv"))

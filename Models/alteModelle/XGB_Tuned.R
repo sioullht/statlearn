@@ -1,8 +1,3 @@
-# -------------------------------------------------------
-# XGBoost (caret) + OOF Platt Calibration + Cutoff-Tuning
-# -------------------------------------------------------
-
-# Pakete
 packages <- c("tidyverse","caret","pROC","xgboost","scales","Matrix","doParallel","ggplot2")
 installed <- rownames(installed.packages())
 for (pkg in packages) if (!pkg %in% installed) install.packages(pkg, dependencies = TRUE)
@@ -10,45 +5,36 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 set.seed(123)
 
-# -------------------------------------------------------
+
 # Daten laden & Zielvariable
-# -------------------------------------------------------
 train_data <- readr::read_csv("Step3/train_data.csv", show_col_types = FALSE)
 test_data  <- readr::read_csv("Step3/test_data.csv",  show_col_types = FALSE)
 train_data$y <- factor(train_data$y, levels=c(0,1), labels=c("neg","pos"))
 test_data$y  <- factor(test_data$y,  levels=c(0,1), labels=c("neg","pos"))
 
-# -------------------------------------------------------
+
 # Ausgabepfade
-# -------------------------------------------------------
 out_dir  <- "Models/XGB_Tuned"
 plot_dir <- file.path(out_dir, "plots")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 log_file <- file.path(out_dir, "train_log.txt")
 
-# -------------------------------------------------------
-# Parallelisierung
-# -------------------------------------------------------
 n_cores <- max(1, parallel::detectCores()-1)
 cl <- parallel::makeCluster(n_cores)
 doParallel::registerDoParallel(cl)
 
-# -------------------------------------------------------
-# TrainControl
-# -------------------------------------------------------
+# Cross-Validation
 control <- trainControl(
   method = "cv",
   number = 5,
   classProbs = TRUE,
   summaryFunction = twoClassSummary,
-  savePredictions = "final",     # wichtig für OOF-Kalibrierung & Cutoff-Tuning
+  savePredictions = "final",     
   allowParallel = TRUE
 )
 
-# -------------------------------------------------------
-# Grid
-# -------------------------------------------------------
+
 xgb_grid <- expand.grid(
   nrounds = c(300, 600, 900),
   max_depth = c(2, 3, 4),
@@ -59,14 +45,13 @@ xgb_grid <- expand.grid(
   subsample = c(0.7, 0.9)
 )
 
-# Class balance -> scale_pos_weight (nur wenn nötig)
+# Class balance 
 pos_rate <- mean(train_data$y == "pos"); neg_rate <- 1 - pos_rate
 scale_pos_w <- neg_rate / pos_rate
 if (!is.finite(scale_pos_w) || abs(scale_pos_w - 1) < 0.2) scale_pos_w <- 1
 
-# -------------------------------------------------------
-# Logging: Setup
-# -------------------------------------------------------
+
+# Logging
 grid_combos <- nrow(xgb_grid); cv_folds <- control$number
 est_fits <- grid_combos * cv_folds
 cat(
@@ -81,9 +66,7 @@ cat(
   file = log_file, append = TRUE, sep = ""
 )
 
-# -------------------------------------------------------
 # Training
-# -------------------------------------------------------
 start_time <- Sys.time()
 message("Training gestartet um: ", format(start_time, "%Y-%m-%d %H:%M:%S"))
 
@@ -115,9 +98,7 @@ cat(
 
 print(model_xgb_tuned)
 
-# -------------------------------------------------------
 # Platt Scaling (OOF Kalibrierung)
-# -------------------------------------------------------
 oof_full <- model_xgb_tuned$pred
 oof_best <- subset(
   oof_full,
@@ -138,9 +119,7 @@ auc_oof_raw <- as.numeric(pROC::auc(pROC::roc(oof_df$y, oof_df$oof, levels=c("ne
 auc_oof_cal <- as.numeric(pROC::auc(pROC::roc(oof_df$y, calibrate_probs(oof_df$oof), levels=c("neg","pos"), direction="<", quiet=TRUE)))
 cat(sprintf("OOF AUC raw=%.4f | calibrated=%.4f\n", auc_oof_raw, auc_oof_cal), file=log_file, append=TRUE)
 
-# -------------------------------------------------------
 # Cutoff-Tuning (F1 optimal auf OOF)
-# -------------------------------------------------------
 ths <- seq(0.05, 0.95, by=0.01)
 f1s <- sapply(ths, function(t){
   pr <- factor(ifelse(oof_df$oof >= t, "pos","neg"), levels=c("neg","pos"))
@@ -150,9 +129,7 @@ best_thr <- ths[which.max(f1s)]
 message(sprintf("Gewählter Cutoff (F1-optimal, OOF): %.2f", best_thr))
 cat("Gewählter Cutoff (F1-optimal, OOF): ", round(best_thr, 3), "\n", file = log_file, append = TRUE)
 
-# -------------------------------------------------------
 # Predictions: TRAIN & TEST (RAW + CAL)
-# -------------------------------------------------------
 pred_train_prob_raw <- predict(model_xgb_tuned, train_data, type="prob")[, "pos"]
 pred_test_prob_raw  <- predict(model_xgb_tuned, test_data,  type="prob")[, "pos"]
 
@@ -165,9 +142,7 @@ pred_test_class_raw  <- factor(ifelse(pred_test_prob_raw  >= best_thr, "pos","ne
 pred_train_class_cal <- factor(ifelse(pred_train_prob_cal >= best_thr, "pos","neg"), levels=c("neg","pos"))
 pred_test_class_cal  <- factor(ifelse(pred_test_prob_cal  >= best_thr, "pos","neg"), levels=c("neg","pos"))
 
-# -------------------------------------------------------
 # ROC / AUC
-# -------------------------------------------------------
 roc_train_raw <- pROC::roc(train_data$y, pred_train_prob_raw, levels=c("neg","pos"), direction="<", quiet=TRUE)
 roc_test_raw  <- pROC::roc(test_data$y,  pred_test_prob_raw,  levels=c("neg","pos"), direction="<", quiet=TRUE)
 auc_train_raw <- as.numeric(pROC::auc(roc_train_raw)); auc_test_raw <- as.numeric(pROC::auc(roc_test_raw))
@@ -176,17 +151,13 @@ roc_train_cal <- pROC::roc(train_data$y, pred_train_prob_cal, levels=c("neg","po
 roc_test_cal  <- pROC::roc(test_data$y,  pred_test_prob_cal,  levels=c("neg","pos"), direction="<", quiet=TRUE)
 auc_train_cal <- as.numeric(pROC::auc(roc_train_cal)); auc_test_cal <- as.numeric(pROC::auc(roc_test_cal))
 
-# -------------------------------------------------------
 # Confusion Matrices
-# -------------------------------------------------------
 cm_train_raw <- caret::confusionMatrix(pred_train_class_raw, train_data$y, positive="pos")
 cm_test_raw  <- caret::confusionMatrix(pred_test_class_raw,  test_data$y,  positive="pos")
 cm_train_cal <- caret::confusionMatrix(pred_train_class_cal, train_data$y, positive="pos")
 cm_test_cal  <- caret::confusionMatrix(pred_test_class_cal,  test_data$y,  positive="pos")
 
-# -------------------------------------------------------
 # Metriken
-# -------------------------------------------------------
 eps <- 1e-15; clip <- function(p) pmin(pmax(p, eps), 1 - eps)
 y01_tr <- as.numeric(train_data$y == "pos")
 y01_te <- as.numeric(test_data$y == "pos")
@@ -227,9 +198,7 @@ metrics_cal_df <- rbind(Train=met_cal$Train, Test=met_cal$Test) %>% as.data.fram
 cat("\n--- Metriken RAW ---\n"); print(round(metrics_raw_df, 4))
 cat("\n--- Metriken CAL ---\n"); print(round(metrics_cal_df, 4))
 
-# -------------------------------------------------------
-# Speicherung: Confusions, Metriken, Plots
-# -------------------------------------------------------
+# Speicheren der Metriken
 capture.output(cm_train_raw, file = file.path(out_dir, "confusion_matrix_train_RAW.txt"))
 capture.output(cm_test_raw,  file = file.path(out_dir, "confusion_matrix_test_RAW.txt"))
 capture.output(cm_train_cal, file = file.path(out_dir, "confusion_matrix_train_CAL.txt"))
@@ -238,21 +207,19 @@ capture.output(cm_test_cal,  file = file.path(out_dir, "confusion_matrix_test_CA
 metrics_raw_df %>% tibble::rownames_to_column("Split") %>% readr::write_csv(file.path(out_dir, "metrics_train_vs_test_RAW.csv"))
 metrics_cal_df %>% tibble::rownames_to_column("Split") %>% readr::write_csv(file.path(out_dir, "metrics_train_vs_test_CAL.csv"))
 
-# ROC Plots RAW
+# ROC Plots
 p_train_raw <- pROC::ggroc(roc_train_raw) + ggplot2::ggtitle(sprintf("ROC RAW (TRAIN) — AUC = %.3f", auc_train_raw)) + ggplot2::theme_minimal()
 p_test_raw  <- pROC::ggroc(roc_test_raw)  + ggplot2::ggtitle(sprintf("ROC RAW (TEST) — AUC = %.3f",  auc_test_raw))  + ggplot2::theme_minimal()
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_RAW.pdf"), plot = p_train_raw, width = 6, height = 5)
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Test_RAW.pdf"),  plot = p_test_raw,  width = 6, height = 5)
 
-# ROC Plots CAL
+# ROC Plots
 p_train_cal <- pROC::ggroc(roc_train_cal) + ggplot2::ggtitle(sprintf("ROC CAL (TRAIN) — AUC = %.3f", auc_train_cal)) + ggplot2::theme_minimal()
 p_test_cal  <- pROC::ggroc(roc_test_cal)  + ggplot2::ggtitle(sprintf("ROC CAL (TEST) — AUC = %.3f",  auc_test_cal))  + ggplot2::theme_minimal()
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_CAL.pdf"), plot = p_train_cal, width = 6, height = 5)
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Test_CAL.pdf"),  plot = p_test_cal,  width = 6, height = 5)
 
-# -------------------------------------------------------
 # Feature Importance (Gain)
-# -------------------------------------------------------
 final_booster <- model_xgb_tuned$finalModel
 feature_names <- setdiff(names(train_data), "y")
 
@@ -263,9 +230,7 @@ pdf(file.path(plot_dir, "XGB_Feature_Importance_Gain.pdf"), width=7, height=6)
 xgboost::xgb.plot.importance(imp, top_n = min(30, nrow(imp)))
 dev.off()
 
-# -------------------------------------------------------
-# Modell speichern & Cleanup
-# -------------------------------------------------------
+# Modell speichern 
 saveRDS(model_xgb_tuned, file.path(out_dir, "model_xgb_tuned.rds"))
 
 parallel::stopCluster(cl)
