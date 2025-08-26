@@ -5,7 +5,11 @@ files <- c(
   "/Users/louisleicht/Statistical_Learning/Models/XGB/metrics_train_vs_test.csv",
   "/Users/louisleicht/Statistical_Learning/Models/XGB_Tuned_/metrics_train_vs_test.csv",
   "/Users/louisleicht/Statistical_Learning/Models/RF_Tuned/metrics_train_vs_test.csv",
-  "/Users/louisleicht/Statistical_Learning/Models/RF/metrics_train_vs_test.csv"
+  "/Users/louisleicht/Statistical_Learning/Models/RF/metrics_train_vs_test.csv",
+  "/Users/louisleicht/Statistical_Learning/Models/NNs/NN_Tuned/metrics_combined_final.csv",
+  "/Users/louisleicht/Statistical_Learning/Models/NNs/NN/metrics_train_vs_test_nn.csv",
+  "/Users/louisleicht/Statistical_Learning/Models/LR/metrics_train_vs_test.csv",
+  "/Users/louisleicht/Statistical_Learning/Models/LR_Tuned/RFE_Bootstrapping/metrics_train_vs_test.csv"
 )
 
 read_and_tag <- function(path){
