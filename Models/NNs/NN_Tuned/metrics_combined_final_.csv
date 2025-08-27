@@ -1,0 +1,3 @@
+Split,Accuracy,Precision,Recall,F1_Score,AUC,Log_Loss,Brier_Score
+Train,0.661,0.677,0.617,0.645,0.726,0.61,0.211
+Test,0.646,0.665,0.6,0.631,0.709,0.622,0.217

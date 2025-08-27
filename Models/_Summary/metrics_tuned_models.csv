@@ -1,0 +1,9 @@
+Model,Split,Accuracy,Precision,Recall,F1_Score,AUC,Log_Loss,Brier_Score,Source
+XGB_Tuned_,Train,0.6258366800535475,0.5828609291025547,0.8836923763812926,0.7024221453287198,0.7231576919874257,0.6109253059930149,0.21193921012786435,/Users/louisleicht/Statistical_Learning/Models/XGB_Tuned_/metrics_train_vs_test.csv
+XGB_Tuned_,Test,0.6237146947806846,0.5853956082258627,0.8677344355463704,0.6991362264543657,0.7126013096008376,0.6198295286796419,0.21563308715330876,/Users/louisleicht/Statistical_Learning/Models/XGB_Tuned_/metrics_train_vs_test.csv
+RF_Tuned,Train,0.6574631860776439,0.6526543878656554,0.6723964728206273,0.6623783605475837,0.7320990579213633,1.0697170745092923,0.2659812079428826,/Users/louisleicht/Statistical_Learning/Models/RF_Tuned/metrics_train_vs_test.csv
+RF_Tuned,Test,0.6502668228556553,0.6494194851085311,0.6646861276156032,0.656964126133027,0.7054040212921282,0.7460624447393603,0.27716582480801766,/Users/louisleicht/Statistical_Learning/Models/RF_Tuned/metrics_train_vs_test.csv
+NN_Tuned,Train,0.661,0.677,0.617,0.645,0.726,0.61,0.211,/Users/louisleicht/Statistical_Learning/Models/NNs/NN_Tuned/metrics_combined_final_.csv
+NN_Tuned,Test,0.646,0.665,0.6,0.631,0.709,0.622,0.217,/Users/louisleicht/Statistical_Learning/Models/NNs/NN_Tuned/metrics_combined_final_.csv
+RFE_Bootstrapping,Train,0.6563476126729139,0.6568737385063915,0.6538676191539234,0.6553672316384181,0.716891039818404,0.6147134972358835,0.21376132893261943,/Users/louisleicht/Statistical_Learning/Models/LR_Tuned/RFE_Bootstrapping/metrics_train_vs_test.csv
+RFE_Bootstrapping,Test,0.6487049329688923,0.6514994829369183,0.650994575045208,0.6512469311280528,0.7115964812745134,0.6198630209314621,0.215743305029305,/Users/louisleicht/Statistical_Learning/Models/LR_Tuned/RFE_Bootstrapping/metrics_train_vs_test.csv
