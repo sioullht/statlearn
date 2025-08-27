@@ -10,7 +10,7 @@ df <- read_csv(input_file)
 
 # 2. Daten aufteilen (Trainings- und Testset)
 # Dies ist entscheidend, um die Skalierung korrekt durchzuführen!
-# Wir nehmen 80% der Daten zum Trainieren und 20% zum Testen.
+# Wir nehmen 70% der Daten zum Trainieren und 30% zum Testen.
 set.seed(123) # Für reproduzierbare Ergebnisse
 train_indices <- createDataPartition(df$y, p = 0.7, list = FALSE)
 train_data <- df[train_indices, ]
