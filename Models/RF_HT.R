@@ -27,7 +27,7 @@ ctrl_cv <- trainControl(
   allowParallel = TRUE
 )
 
-# Grid für mtry (Variablen pro Split)
+# Grid für mtry 
 p <- ncol(train_data) - 1L
 rf_grid <- expand.grid(
   mtry = floor(seq(2, sqrt(p)*2, length.out = 6)) # z.B. 6 Werte
@@ -42,8 +42,8 @@ model_rf_tuned <- train(
   tuneGrid  = rf_grid,
   metric    = "ROC",
   ntree     = 500,
-  nodesize  = 5,     # etwas Regularisierung
-  maxnodes  = 32,    # Begrenzung Baumgröße
+  nodesize  = 5,     
+  maxnodes  = 32,    
   importance = TRUE
 )
 
@@ -102,12 +102,11 @@ metrics_test <- c(
 metrics_train_test <- rbind(Train = metrics_train, Test = metrics_test) %>% as.data.frame()
 print(round(metrics_train_test, 4))
 
-# Speicherung
+#Speichern
 out_dir  <- "Models/RF_Tuned"
 plot_dir <- file.path(out_dir, "plots")
 dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Speichern der Metriken
 capture.output(cm_train, file = file.path(out_dir, "confusion_matrix_train.txt"))
 capture.output(cm_test,  file = file.path(out_dir, "confusion_matrix_test.txt"))
 
@@ -115,7 +114,7 @@ metrics_train_test %>%
   tibble::rownames_to_column("Split") %>%
   readr::write_csv(file.path(out_dir, "metrics_train_vs_test.csv"))
 
-# ROC-Plots
+#ROC-Plots
 p_train <- pROC::ggroc(roc_train) +
   ggplot2::ggtitle(sprintf("ROC (TRAIN) — AUC = %.3f", auc_train)) +
   ggplot2::theme_minimal()
@@ -132,10 +131,9 @@ p_both <- pROC::ggroc(list(Train = roc_train, Test = roc_test)) +
   ggplot2::labs(linetype = "Split", color = "Split")
 ggplot2::ggsave(filename = file.path(plot_dir, "ROC_Train_vs_Test.pdf"), plot = p_both, width = 6, height = 5)
 
-# Modell speichern
+#Modell speichern
 saveRDS(model_rf_tuned, file.path(out_dir, "model_rf_tuned.rds"))
 
-# Cluster stoppen
 parallel::stopCluster(cl)
 foreach::registerDoSEQ()
 

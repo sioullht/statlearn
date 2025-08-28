@@ -1,2 +1,0 @@
-best_k=0.74719908
-best_threshold=0.43
