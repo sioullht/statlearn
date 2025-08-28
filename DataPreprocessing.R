@@ -1,15 +1,8 @@
 library(dplyr)
 library(readr)
 
-# -------------------- #
-# 1. Rohdaten einlesen #
-# -------------------- #
-
+#Datem einlesen
 df <- read_csv("atp_matches_till_2022.csv")
-
-# ------------------------------- #
-# 2. Relevante Spalten auswählen  #
-# ------------------------------- #
 
 spalten <- c(
   'tourney_date', 'tourney_name', 'surface', 
@@ -21,21 +14,18 @@ spalten <- c(
   'winner_rank', 'loser_rank', 'winner_rank_points', 'loser_rank_points'
 )
 
-# Nur vorhandene Spalten auswählen
 df <- df %>% select(any_of(spalten))
 
-# tourney_date als numerisch, Jahr extrahieren
+
 df$tourney_date <- as.numeric(df$tourney_date)
 df$year <- df$tourney_date %/% 10000
 
-# Daten auf Zeitraum 2000–2020 beschränken
+#Daten auf Zeitraum 2000–2020 beschränken
 df <- df %>%
   filter(year >= 2000 & year <= 2020) %>%
   select(-year)
 
-# -------------------------------------- #
-# 3. Zufällige Zuordnung von Spielern    #
-# -------------------------------------- #
+#Zufällige Zuordnung von Spielern
 
 set.seed(123)
 
@@ -97,23 +87,15 @@ df <- df %>%
 
     surface = surface,
     tourney_name = tourney_name,
-    date = tourney_date,   # gleich umbenannt
+    date = tourney_date,
     best_of = best_of,
     minutes = minutes,
 
     y = ifelse(player1_name == winner_name, 1, 0)
   )
 
-# ---------------------- #
-# 4. Weitere Bereinigung #
-# ---------------------- #
-
 df <- df %>%
   na.omit() %>%
   select(-player1_name, -player2_name)
-
-# ------------------ #
-# 5. Datei speichern #
-# ------------------ #
 
 write_csv(df, "ATP_ViLo_.csv")
