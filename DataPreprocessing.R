@@ -26,7 +26,6 @@ df <- df %>%
   select(-year)
 
 #Zufällige Zuordnung von Spielern
-
 set.seed(123)
 
 df <- df %>%

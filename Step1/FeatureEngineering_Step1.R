@@ -22,7 +22,6 @@ df <- df %>%
     p2_breakp_saved  = ifelse(player2_svgms > 0, player2_bpfaced / player2_svgms, NA),
     p2_breakp_succeed   = ifelse(player2_bpfaced > 0, 1 - (player2_bpsaved / player2_bpfaced), NA),
 
-    #TODO: anpassen -> sind bisher werte die wenig aussagen 
     ace_diff           = (player1_ace / player1_svpt) - (player2_ace / player2_svpt),
     df_diff            = (player1_df / player1_svpt) - (player2_df / player2_svpt),
     in1_pct_diff       = (player1_1stin / player1_svpt) - (player2_1stin / player2_svpt),
@@ -35,25 +34,25 @@ df <- df %>%
     bp_per_game_diff   = ifelse(player1_svgms > 0, player1_bpfaced / player1_svgms, NA) -
                          ifelse(player2_svgms > 0, player2_bpfaced / player2_svgms, NA),
 
-     # --- HIER BEGINNT DIE ERGÄNZUNG FÜR RANK & POINTS ---
     
-    # Logarithmischer Unterschied der Ränge (log() in R ist der natürliche Logarithmus)
+    # Logarithmischer Unterschied Ränge 
     log_rank_diff = log(player2_rank) - log(player1_rank),
     
-    # Einfacher Unterschied der Ranglistenpunkte
+    #Unterschied der Ranglistenpunkte
     rankpoints_diff = player1_rank_pts - player2_rank_pts,
     
-    # One-Hot Encoding für player1_hand
+    #One-Hot Encoding für player1_hand
     p1_hand_R = ifelse(player1_hand == 'R', 1, 0),
     p1_hand_L = ifelse(player1_hand == 'L', 1, 0),
     p1_hand_U = ifelse(player1_hand == 'U', 1, 0),
 
-    # One-Hot Encoding für player2_hand
+    #One-Hot Encoding für player2_hand
     p2_hand_R = ifelse(player2_hand == 'R', 1, 0),
     p2_hand_L = ifelse(player2_hand == 'L', 1, 0),
     p2_hand_U = ifelse(player2_hand == 'U', 1, 0)
   ) %>%
-  # Die ursprünglichen 'hand'-Spalten entfernen, da sie nun redundant sind
+
+  #ursprünglichen 'hand'-Spalten entfernen
   select(-player1_hand, -player2_hand)
 
 write.csv(df, "FE_Step1.csv", row.names = FALSE)
