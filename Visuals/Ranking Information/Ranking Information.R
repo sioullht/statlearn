@@ -34,7 +34,7 @@ p_rd <- ggplot(dt[!is.na(rank_diff)], aes(x = rank_diff)) +
   geom_histogram(bins = 80) +
   labs(
     #title = "Distribution of Ranking Difference (Player1 - Player2)",
-    x = "Ranking difference (negative: P1 higher-ranked)",
+    x = "Ranking difference",
     y = "Number of matches"
   ) +
   theme_minimal()
@@ -63,11 +63,11 @@ winprob_by_bin <- dt[, .(
 
 p_wp <- ggplot(winprob_by_bin, aes(x = gap_mid, y = win_prob)) +
   geom_point() +
-  geom_smooth(method = "loess", se = FALSE, span = 0.8) +
+  geom_smooth(method = "loess", se = FALSE, span = 0.8, color = "grey40") +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   labs(
     #title = "Higher-Ranked Player Win Probability vs |Ranking Difference|",
-    x = "Absolute ranking difference (bin midpoints)",
+    x = "Absolute ranking difference",
     y = "Win probability (higher-ranked)"
   ) +
   theme_minimal()

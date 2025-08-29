@@ -32,9 +32,6 @@ summary_stats <- matches_per_player[, .(
 # ---- Save summary table as JPEG ----
 table_gt <- summary_stats |>
   gt() |>
-  tab_header(
-    title = "Summary of Player Participation Statistics"
-  ) |>
   fmt_number(
     columns = everything(),
     decimals = 1
@@ -42,16 +39,6 @@ table_gt <- summary_stats |>
 
 gtsave(table_gt, "table_player_stats.pdf")
 
-# ---- Histogram: matches per player ----
-p_hist <- ggplot(matches_per_player, aes(x = matches)) +
-  geom_histogram(bins = 50) +
-  scale_x_continuous(labels = comma) +
-  labs(
-    #title = "Distribution of Matches per Player",
-    x = "Matches per player", y = "Count of players"
-  ) +
-  theme_minimal()
-ggsave("hist_matches_per_player.jpeg", p_hist, width = 7, height = 4.5, dpi = 300)
 
 # ---- Cumulative distribution (Lorenz-style) ----
 matches_per_player[, prop_matches := matches / sum(matches)]
@@ -68,7 +55,6 @@ p_cdf <- ggplot(matches_per_player, aes(x = cum_players, y = cum_matches)) +
   scale_x_continuous(labels = percent) +
   scale_y_continuous(labels = percent) +
   labs(
-    title = "Cumulative Distribution of Matches Across Players",
     x = "Cumulative share of players",
     y = "Cumulative share of matches"
   ) +
